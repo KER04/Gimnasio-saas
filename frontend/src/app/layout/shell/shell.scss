@@ -1,0 +1,155 @@
+:host {
+  display: block;
+  height: 100dvh;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.cabecera {
+  display: flex;
+  align-items: center;
+  gap: var(--espacio-3);
+  padding: var(--espacio-2) var(--espacio-4);
+  background: var(--color-superficie);
+  border-bottom: 1px solid var(--color-borde);
+  min-height: 56px;
+  flex-wrap: nowrap;
+}
+
+.boton-menu-movil {
+  display: none;
+  min-width: var(--tactil-minimo);
+  min-height: var(--tactil-minimo);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio-borde);
+  background: var(--color-superficie);
+  font-size: 1.25rem;
+}
+
+.nombre-gimnasio {
+  font-weight: 700;
+  font-size: var(--tamano-grande);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.usuario-actual {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--espacio-3);
+  min-width: 0;
+}
+
+.usuario-nombre {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 10rem;
+}
+
+.usuario-rol {
+  color: var(--color-texto-suave);
+  font-size: var(--tamano-pequeno);
+  white-space: nowrap;
+}
+
+.boton-salir {
+  min-height: var(--tactil-minimo);
+  padding: 0 var(--espacio-3);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio-borde);
+  background: var(--color-superficie-alterna);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cuerpo {
+  position: relative;
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.nav-lateral {
+  width: 14rem;
+  flex-shrink: 0;
+  background: var(--color-superficie);
+  border-right: 1px solid var(--color-borde);
+  padding: var(--espacio-4) var(--espacio-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--espacio-1);
+}
+
+.enlace-nav {
+  display: flex;
+  align-items: center;
+  min-height: var(--tactil-minimo);
+  padding: 0 var(--espacio-3);
+  border-radius: var(--radio-borde);
+  color: var(--color-texto);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.enlace-activo {
+  background: var(--color-superficie-alterna);
+  color: var(--color-primario);
+}
+
+.contenido {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* `.fondo-oscurecido` solo se renderiza en el DOM (`@if`) cuando el menú
+   móvil está abierto, así que no necesita una clase de estado propia. */
+.fondo-oscurecido {
+  position: fixed;
+  inset: 56px 0 0 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 10;
+}
+
+/* A 360px: nav lateral se colapsa detrás de un menú hamburguesa que no
+   estorba el flujo principal (RF-06/RF-23: debe funcionar a 360px sin
+   desbordar horizontalmente). */
+@media (max-width: 768px) {
+  .boton-menu-movil {
+    display: block;
+  }
+
+  .nav-lateral {
+    position: fixed;
+    inset: 56px 0 0 0;
+    z-index: 20;
+    width: min(80vw, 18rem);
+    transform: translateX(-100%);
+    transition: transform 0.15s ease-out;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
+  }
+
+  .nav-abierta {
+    transform: translateX(0);
+  }
+}
+
+@media (min-width: 769px) {
+  .fondo-oscurecido {
+    display: none;
+  }
+}

@@ -40,3 +40,33 @@ export interface RefreshResponse {
   access: string;
   refresh?: string;
 }
+
+/** Sede asignada al usuario (`GET /api/auth/me/` -> `sedes[]`). */
+export interface Sede {
+  id: number;
+  nombre: string;
+}
+
+/** Resumen del tenant (gimnasio) del usuario, embebido en `me()`. */
+export interface TenantResumen {
+  id: number;
+  nombre_comercial: string;
+  subdominio: string;
+}
+
+/**
+ * Contexto completo de la sesión, devuelto por `GET /api/auth/me/`
+ * (`MeView`, ver `apps/autenticacion/views.py`). Los campos de `Usuario` van
+ * en la raíz (compatibilidad con lo que ya existía); lo nuevo se añade al
+ * lado: nombre del rol, resumen del tenant, sedes asignadas y códigos de
+ * permiso del rol.
+ *
+ * `permisos` es SOLO para usabilidad (ocultar/mostrar acciones en la UI):
+ * la autorización real la sigue imponiendo el backend con 403.
+ */
+export interface Sesion extends Usuario {
+  rol_nombre: string | null;
+  tenant: TenantResumen;
+  sedes: Sede[];
+  permisos: string[];
+}

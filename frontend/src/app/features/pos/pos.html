@@ -1,0 +1,303 @@
+@if (!puedeVender()) {
+  <p class="aviso-validacion" role="alert">
+    Tu usuario no tiene una sede asignada; contacta al administrador. No puedes registrar ventas
+    hasta que te asignen una sede.
+  </p>
+}
+
+<div class="pos">
+  <!-- Buscador siempre visible (RF-06/RF-23) -->
+  <div class="buscador-superior">
+    <input
+      type="search"
+      class="entrada-busqueda"
+      placeholder="Buscar producto por nombre o código de barras…"
+      [value]="textoBusquedaProducto()"
+      (input)="onBuscarProducto($any($event.target).value)"
+      inputmode="text"
+      aria-label="Buscar producto"
+    />
+  </div>
+
+  <div class="cuerpo-pos">
+    <!-- Catálogo -->
+    <section class="panel-catalogo" aria-label="Catálogo">
+      <div class="pestanas" role="tablist">
+        <button
+          type="button"
+          class="pestana"
+          role="tab"
+          [attr.aria-selected]="pestanaActiva() === 'productos'"
+          [class.pestana-activa]="pestanaActiva() === 'productos'"
+          (click)="seleccionarPestana('productos')"
+        >
+          Productos
+        </button>
+        <button
+          type="button"
+          class="pestana"
+          role="tab"
+          [attr.aria-selected]="pestanaActiva() === 'planes'"
+          [class.pestana-activa]="pestanaActiva() === 'planes'"
+          (click)="seleccionarPestana('planes')"
+        >
+          Planes
+        </button>
+      </div>
+
+      @if (pestanaActiva() === 'productos') {
+        <ul class="lista-resultados">
+          @if (buscandoProductos()) {
+            <li class="mensaje-lista">Buscando…</li>
+          }
+          @if (!buscandoProductos() && textoBusquedaProducto().trim() && resultadosProductos().length === 0) {
+            <li class="mensaje-lista">Sin resultados para "{{ textoBusquedaProducto() }}".</li>
+          }
+          @if (!textoBusquedaProducto().trim()) {
+            <li class="mensaje-lista">Escribe para buscar un producto.</li>
+          }
+          @for (producto of resultadosProductos(); track producto.id) {
+            <li>
+              <button type="button" class="tarjeta-resultado" (click)="agregarProducto(producto)">
+                <span class="nombre-resultado">{{ producto.nombre }}</span>
+                <span class="detalle-resultado">
+                  <span class="precio-resultado">{{ producto.precio_venta | cop }}</span>
+                  @if (producto.stock !== null) {
+                    <span class="stock-resultado">Stock: {{ producto.stock }}</span>
+                  }
+                </span>
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <ul class="lista-resultados">
+          @if (cargandoPlanes()) {
+            <li class="mensaje-lista">Cargando planes…</li>
+          }
+          @for (plan of planes(); track plan.id) {
+            <li>
+              <button type="button" class="tarjeta-resultado" (click)="agregarPlan(plan)">
+                <span class="nombre-resultado">{{ plan.nombre }}</span>
+                <span class="detalle-resultado">
+                  <span class="precio-resultado">{{ plan.precio | cop }}</span>
+                </span>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <!-- Carrito -->
+    <section class="panel-carrito" aria-label="Carrito">
+      <h2 class="titulo-panel">Carrito</h2>
+
+      @if (lineas().length === 0) {
+        <p class="carrito-vacio">Añade productos o planes para empezar una venta.</p>
+      }
+
+      <ul class="lista-carrito">
+        @for (linea of lineas(); track linea.idLocal) {
+          <li class="linea-carrito">
+            <div class="linea-info">
+              <span class="linea-descripcion">{{ linea.descripcion }}</span>
+              <span class="linea-precio-unitario">{{ linea.precioUnitario | cop }} c/u</span>
+            </div>
+
+            <div class="linea-cantidad">
+              <button
+                type="button"
+                class="boton-cantidad"
+                (click)="decrementar(linea)"
+                aria-label="Disminuir cantidad"
+              >
+                −
+              </button>
+              <input
+                type="text"
+                inputmode="decimal"
+                class="entrada-cantidad"
+                [value]="linea.cantidad"
+                (change)="cambiarCantidad(linea.idLocal, +$any($event.target).value)"
+                aria-label="Cantidad"
+              />
+              <button
+                type="button"
+                class="boton-cantidad"
+                (click)="incrementar(linea)"
+                aria-label="Aumentar cantidad"
+              >
+                +
+              </button>
+            </div>
+
+            <span class="linea-total">{{ linea.cantidad * linea.precioUnitario | cop }}</span>
+
+            <button
+              type="button"
+              class="boton-quitar"
+              (click)="quitarLinea(linea.idLocal)"
+              aria-label="Quitar línea"
+            >
+              🗑
+            </button>
+          </li>
+        }
+      </ul>
+
+      <!-- Cliente -->
+      <div class="bloque-cliente">
+        <h3 class="titulo-bloque">Cliente</h3>
+        @if (clienteSeleccionado(); as cliente) {
+          <div class="cliente-elegido">
+            <span>{{ cliente.nombre }} @if (cliente.cedula) { ({{ cliente.cedula }}) }</span>
+            <button type="button" class="boton-quitar-cliente" (click)="quitarCliente()">Quitar</button>
+          </div>
+        } @else {
+          <input
+            type="search"
+            class="entrada-busqueda"
+            placeholder="Buscar cliente por nombre o cédula…"
+            [value]="textoBusquedaCliente()"
+            (input)="onBuscarCliente($any($event.target).value)"
+            aria-label="Buscar cliente"
+          />
+          @if (buscandoClientes()) {
+            <p class="mensaje-lista">Buscando…</p>
+          }
+          <ul class="lista-resultados-clientes">
+            @for (cliente of resultadosClientes(); track cliente.id) {
+              <li>
+                <button type="button" class="tarjeta-cliente" (click)="seleccionarCliente(cliente)">
+                  {{ cliente.nombre }} @if (cliente.cedula) { — {{ cliente.cedula }} }
+                </button>
+              </li>
+            }
+          </ul>
+          @if (faltaCliente()) {
+            <p class="aviso-validacion" role="alert">
+              El pago recibido es menor que el total: selecciona un cliente para poder cobrar
+              (una cuenta por cobrar no se puede dejar sin nombre).
+            </p>
+          }
+        }
+      </div>
+
+      <!-- Descuento -->
+      <div class="bloque-descuento">
+        <h3 class="titulo-bloque">Descuento</h3>
+        <label class="campo-inline">
+          <span>Monto</span>
+          <input
+            type="text"
+            inputmode="decimal"
+            class="entrada-monto"
+            [value]="descuentoMonto()"
+            (change)="onDescuentoChange(+$any($event.target).value)"
+            aria-label="Monto de descuento"
+          />
+        </label>
+        @if (descuentoRequiereMotivo()) {
+          <label class="campo-inline">
+            <span>Motivo (obligatorio)</span>
+            <input
+              type="text"
+              class="entrada-texto"
+              [value]="motivoDescuento()"
+              (input)="motivoDescuento.set($any($event.target).value)"
+              aria-label="Motivo del descuento"
+            />
+          </label>
+          @if (faltaMotivoDescuento()) {
+            <p class="aviso-validacion" role="alert">
+              Todo descuento mayor a cero exige indicar un motivo.
+            </p>
+          }
+        }
+      </div>
+    </section>
+  </div>
+
+  <!-- Cobro: zona baja, siempre alcanzable con el pulgar (RF-06) -->
+  <div class="zona-cobro">
+    <div class="fila-forma-pago">
+      <span class="etiqueta-cobro">Forma de pago</span>
+      <div class="opciones-forma-pago">
+        <button
+          type="button"
+          class="opcion-forma-pago"
+          [class.opcion-activa]="formaPago() === 'efectivo'"
+          (click)="formaPago.set('efectivo')"
+        >
+          Efectivo
+        </button>
+        <button
+          type="button"
+          class="opcion-forma-pago"
+          [class.opcion-activa]="formaPago() === 'transferencia'"
+          (click)="formaPago.set('transferencia')"
+        >
+          Transferencia
+        </button>
+        <button
+          type="button"
+          class="opcion-forma-pago"
+          [class.opcion-activa]="formaPago() === 'tarjeta'"
+          (click)="formaPago.set('tarjeta')"
+        >
+          Tarjeta
+        </button>
+      </div>
+    </div>
+
+    <label class="fila-monto-recibido">
+      <span class="etiqueta-cobro">Monto recibido</span>
+      <input
+        type="text"
+        inputmode="decimal"
+        class="entrada-monto-grande"
+        [value]="montoRecibido()"
+        (input)="onMontoRecibidoChange(+$any($event.target).value)"
+        aria-label="Monto recibido"
+      />
+    </label>
+
+    <div class="resumen-totales">
+      <div class="fila-total">
+        <span>Total</span>
+        <strong>{{ total() | cop }}</strong>
+      </div>
+      <div class="fila-total">
+        <span>Saldo pendiente</span>
+        <strong [class.destacar-peligro]="saldoPendiente() > 0">{{ saldoPendiente() | cop }}</strong>
+      </div>
+      <div class="fila-total">
+        <span>Cambio</span>
+        <strong [class.destacar-exito]="cambio() > 0">{{ cambio() | cop }}</strong>
+      </div>
+    </div>
+
+    @if (errorCobro()) {
+      <p class="error-cobro" role="alert">{{ errorCobro() }}</p>
+    }
+
+    <button type="button" class="boton-cobrar" [disabled]="!puedeCobrar()" (click)="cobrar()">
+      {{ enviando() ? 'Registrando venta…' : 'Cobrar' }}
+    </button>
+  </div>
+</div>
+
+@if (ventaConfirmada(); as venta) {
+  <div class="fondo-modal">
+    <div class="modal-confirmacion" role="dialog" aria-modal="true">
+      <h2>Venta #{{ venta.consecutivo }} registrada</h2>
+      <p class="estado-venta">Estado: {{ venta.estado }}</p>
+      <p>Total: {{ venta.total | cop }}</p>
+      <p>Saldo: {{ venta.saldo | cop }}</p>
+      <button type="button" class="boton-cerrar-modal" (click)="cerrarConfirmacion()">
+        Nueva venta
+      </button>
+    </div>
+  </div>
+}

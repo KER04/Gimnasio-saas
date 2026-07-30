@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable, inject } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { BehaviorSubject, Observable, finalize, of, shareReplay, tap, throwError } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
@@ -8,12 +8,15 @@ import {
   LoginRequest,
   RefreshResponse,
   RegisterRequest,
+  Sede,
+  Sesion,
   Usuario,
 } from '../models/auth.model';
 import { subdominioDesdeHostname } from '../tenant/subdominio.util';
 
 const ACCESS_TOKEN_KEY = 'gimnasio_access_token';
 const REFRESH_TOKEN_KEY = 'gimnasio_refresh_token';
+const SESION_KEY = 'gimnasio_sesion';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -22,6 +25,29 @@ export class AuthService {
 
   private readonly currentUserSubject = new BehaviorSubject<Usuario | null>(null);
   readonly currentUser$ = this.currentUserSubject.asObservable();
+
+  /**
+   * Contexto completo de la sesión (`GET /api/auth/me/`): usuario, tenant,
+   * sedes asignadas y permisos del rol. Se persiste en `localStorage` para
+   * que un F5 no deje momentáneamente a la aplicación sin sede ni permisos
+   * mientras `me()` responde (se rehidrata de forma síncrona en el
+   * constructor y luego se refresca en segundo plano contra el backend).
+   */
+  private readonly sesionSignal = signal<Sesion | null>(this.leerSesionPersistida());
+  readonly sesion = this.sesionSignal.asReadonly();
+
+  /** Códigos de permiso del rol actual (usabilidad, no seguridad: ver `tienePermiso`). */
+  readonly permisos = computed<string[]>(() => this.sesionSignal()?.permisos ?? []);
+
+  /** Primera sede asignada al usuario, o `null` si no tiene ninguna.
+   * TODO: cuando exista selector de sede, dejar de asumir "la primera". */
+  readonly sedeActual = computed<Sede | null>(() => this.sesionSignal()?.sedes[0] ?? null);
+
+  readonly nombreGimnasio = computed<string | null>(
+    () => this.sesionSignal()?.tenant.nombre_comercial ?? null,
+  );
+
+  readonly nombreRol = computed<string | null>(() => this.sesionSignal()?.rol_nombre ?? null);
 
   /**
    * Petición de refresh actualmente en vuelo, si la hay.
@@ -34,6 +60,19 @@ export class AuthService {
    */
   private refreshEnCurso$: Observable<RefreshResponse> | null = null;
 
+  constructor() {
+    const sesionPersistida = this.sesionSignal();
+    if (sesionPersistida) {
+      this.currentUserSubject.next(sesionPersistida);
+    }
+    // Rehidratación en segundo plano: si hay sesión (token presente), refresca
+    // contra el backend por si algo cambió (rol, permisos, sedes) desde la
+    // última visita.
+    if (this.isAuthenticated) {
+      this.me().subscribe({ error: () => void 0 });
+    }
+  }
+
   get isAuthenticated(): boolean {
     return !!this.getAccessToken();
   }
@@ -41,13 +80,19 @@ export class AuthService {
   login(credentials: LoginRequest): Observable<AuthResponse> {
     return this.http
       .post<AuthResponse>(`${this.apiUrl}/login/`, this.conSubdominio(credentials))
-      .pipe(tap((response) => this.handleAuthResponse(response)));
+      .pipe(
+        tap((response) => this.handleAuthResponse(response)),
+        tap(() => this.me().subscribe({ error: () => void 0 })),
+      );
   }
 
   register(data: RegisterRequest): Observable<AuthResponse> {
     return this.http
       .post<AuthResponse>(`${this.apiUrl}/register/`, this.conSubdominio(data))
-      .pipe(tap((response) => this.handleAuthResponse(response)));
+      .pipe(
+        tap((response) => this.handleAuthResponse(response)),
+        tap(() => this.me().subscribe({ error: () => void 0 })),
+      );
   }
 
   refreshToken(): Observable<RefreshResponse> {
@@ -90,10 +135,23 @@ export class AuthService {
     );
   }
 
-  me(): Observable<Usuario> {
-    return this.http.get<Usuario>(`${this.apiUrl}/me/`).pipe(
-      tap((usuario) => this.currentUserSubject.next(usuario)),
+  /** `GET /api/auth/me/`: contexto completo de la sesión (usuario, tenant,
+   * sedes y permisos). Puebla `sesion` (signal) y la persiste. */
+  me(): Observable<Sesion> {
+    return this.http.get<Sesion>(`${this.apiUrl}/me/`).pipe(
+      tap((sesion) => {
+        this.currentUserSubject.next(sesion);
+        this.sesionSignal.set(sesion);
+        this.guardarSesionPersistida(sesion);
+      }),
     );
+  }
+
+  /** Comprueba si la sesión actual tiene el código de permiso indicado.
+   * SOLO usabilidad (ocultar/mostrar UI): la autorización real la impone
+   * el backend con 403. Ver `permisoGuard`. */
+  tienePermiso(codigo: string): boolean {
+    return this.permisos().includes(codigo);
   }
 
   getAccessToken(): string | null {
@@ -146,9 +204,30 @@ export class AuthService {
     localStorage.setItem(REFRESH_TOKEN_KEY, token);
   }
 
+  private guardarSesionPersistida(sesion: Sesion): void {
+    try {
+      localStorage.setItem(SESION_KEY, JSON.stringify(sesion));
+    } catch {
+      // localStorage lleno o inaccesible (modo privado, etc.): la sesión
+      // sigue funcionando en memoria para esta pestaña, solo se pierde la
+      // rehidratación instantánea en el próximo F5.
+    }
+  }
+
+  private leerSesionPersistida(): Sesion | null {
+    try {
+      const bruto = localStorage.getItem(SESION_KEY);
+      return bruto ? (JSON.parse(bruto) as Sesion) : null;
+    } catch {
+      return null;
+    }
+  }
+
   private clearSessionInternal(): void {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
+    localStorage.removeItem(SESION_KEY);
     this.currentUserSubject.next(null);
+    this.sesionSignal.set(null);
   }
 }

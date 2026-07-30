@@ -1,0 +1,55 @@
+<div class="pagina-login">
+  <form class="tarjeta-login" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+    <h1 class="titulo">Iniciar sesión</h1>
+    <p class="subtitulo">Panel del gimnasio</p>
+
+    @if (requiereCodigoGimnasio) {
+      <label class="campo">
+        <span class="etiqueta">Código de gimnasio</span>
+        <input
+          type="text"
+          formControlName="subdominio"
+          autocomplete="organization"
+          placeholder="ej. gimx"
+          class="entrada"
+        />
+      </label>
+    }
+
+    <label class="campo">
+      <span class="etiqueta">Correo</span>
+      <input
+        type="email"
+        formControlName="correo"
+        autocomplete="username"
+        class="entrada"
+        [class.entrada-error]="form.controls.correo.invalid && form.controls.correo.touched"
+      />
+      @if (form.controls.correo.invalid && form.controls.correo.touched) {
+        <span class="mensaje-campo">Ingresa un correo válido.</span>
+      }
+    </label>
+
+    <label class="campo">
+      <span class="etiqueta">Contraseña</span>
+      <input
+        type="password"
+        formControlName="password"
+        autocomplete="current-password"
+        class="entrada"
+        [class.entrada-error]="form.controls.password.invalid && form.controls.password.touched"
+      />
+      @if (form.controls.password.invalid && form.controls.password.touched) {
+        <span class="mensaje-campo">La contraseña es obligatoria.</span>
+      }
+    </label>
+
+    @if (errorBackend()) {
+      <p class="error-backend" role="alert">{{ errorBackend() }}</p>
+    }
+
+    <button type="submit" class="boton-entrar" [disabled]="!puedeEnviar()">
+      {{ enviando() ? 'Entrando…' : 'Entrar' }}
+    </button>
+  </form>
+</div>
