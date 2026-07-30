@@ -33,7 +33,10 @@ export class Login {
   protected readonly errorBackend = signal<string | null>(null);
 
   protected readonly form = this.fb.nonNullable.group({
-    subdominio: [''],
+    // Obligatorio SOLO cuando el campo se muestra. Si el subdominio se dedujo
+    // del hostname, el campo ni siquiera aparece y exigirlo dejaría el
+    // formulario permanentemente inválido.
+    subdominio: ['', this.requiereCodigoGimnasio ? [Validators.required] : []],
     correo: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required]],
   });

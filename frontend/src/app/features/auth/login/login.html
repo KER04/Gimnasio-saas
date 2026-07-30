@@ -12,7 +12,17 @@
           autocomplete="organization"
           placeholder="ej. gimx"
           class="entrada"
+          [class.entrada-error]="
+            form.controls.subdominio.invalid && form.controls.subdominio.touched
+          "
         />
+        @if (form.controls.subdominio.invalid && form.controls.subdominio.touched) {
+          <span class="mensaje-campo">Indica el código de tu gimnasio.</span>
+        } @else {
+          <span class="ayuda-campo">
+            El identificador de tu gimnasio, el mismo que aparece en su dirección web.
+          </span>
+        }
       </label>
     }
 

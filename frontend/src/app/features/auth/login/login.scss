@@ -60,6 +60,13 @@
   font-size: var(--tamano-pequeno);
 }
 
+/* Ayuda en reposo: "código de gimnasio" no le dice nada a quien entra por
+   primera vez, así que se explica antes de que se equivoque, no después. */
+.ayuda-campo {
+  color: var(--color-texto-suave);
+  font-size: var(--tamano-pequeno);
+}
+
 .error-backend {
   background: var(--color-peligro-fondo);
   color: var(--color-peligro);
