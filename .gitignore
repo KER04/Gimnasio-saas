@@ -1,0 +1,42 @@
+# === Secretos y configuración local ===
+.env
+.env.*
+!.env.example
+.claude/
+
+# === Python / Django ===
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.sqlite3
+/backend/staticfiles/
+/backend/media/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# === Node / Angular ===
+node_modules/
+dist/
+/frontend/.angular/
+npm-debug.log*
+yarn-error.log*
+
+# === Documentación interna y volcados de base de datos ===
+# No se versionan: son material de trabajo interno, no código fuente.
+requerimientos-gimnasio-v4-final.md
+esquema_gimnasio_postgres.sql
+respaldo_*.sql
+*.dump
+*.sql.gz
+
+# === Sistema operativo ===
+.DS_Store
+Thumbs.db
+
+# === Editores ===
+.idea/
+*.swp
+*~
