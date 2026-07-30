@@ -222,11 +222,51 @@ class RegisterView(generics.CreateAPIView):
 
 
 class MeView(APIView):
-    """Devuelve los datos del usuario autenticado."""
+    """Devuelve el contexto completo de la sesión del usuario autenticado.
+
+    No basta con los datos del usuario: el frontend necesita además saber
+    en qué sede trabaja (para registrar ventas y consultar stock), qué puede
+    hacer (para no ofrecer botones que el backend va a rechazar con 403) y
+    cómo se llaman su gimnasio y su rol (para mostrarlos, en vez de un id).
+    Sin esto, el cliente tenía que adivinar la sede por configuración y no
+    podía resolver permisos en absoluto.
+
+    Los campos originales del usuario se mantienen en la raíz para no romper
+    a quien ya consumía esta respuesta; lo nuevo se añade al lado.
+    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response(UsuarioSerializer(request.user).data)
+        from apps.core.permissions import _codigos_permiso_del_rol
+        from apps.organizacion.models import UsuarioSede
+
+        usuario = request.user
+        datos = dict(UsuarioSerializer(usuario).data)
+
+        rol = usuario.rol
+        tenant = usuario.tenant
+
+        sedes = [
+            {'id': asignacion.sede_id, 'nombre': asignacion.sede.nombre}
+            for asignacion in (
+                UsuarioSede.objects.filter(usuario=usuario).select_related('sede')
+            )
+        ]
+
+        datos.update({
+            'rol_nombre': rol.nombre if rol else None,
+            'tenant': {
+                'id': tenant.id,
+                'nombre_comercial': tenant.nombre_comercial,
+                'subdominio': str(tenant.subdominio),
+            },
+            'sedes': sedes,
+            # Códigos de permiso del rol, para que la interfaz pueda ocultar
+            # lo que este usuario no puede hacer. La autorización real la
+            # sigue imponiendo el backend: esto es usabilidad, no seguridad.
+            'permisos': sorted(_codigos_permiso_del_rol(rol.id)) if rol else [],
+        })
+        return Response(datos)
 
 
 class LogoutView(APIView):
