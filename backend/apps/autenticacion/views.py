@@ -5,9 +5,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from apps.core.tenant import tenant_context
+from apps.organizacion.models import Usuario
 
 from .serializers import LoginSerializer, RegisterSerializer, UsuarioSerializer
 
@@ -219,6 +220,66 @@ class RegisterView(generics.CreateAPIView):
         }
         headers = self.get_success_headers(serializer.data)
         return Response(data, status=status.HTTP_201_CREATED, headers=headers)
+
+
+class RefreshView(TokenRefreshView):
+    """Renueva el access token, fijando antes el tenant del propio refresh token.
+
+    Hace falta envolver la vista de simplejwt porque su serializer verifica
+    que el usuario siga existiendo y activo::
+
+        user := get_user_model().objects.get(id=user_id)
+
+    y ``usuarios`` tiene RLS con FORCE. Esta ruta está exenta del middleware,
+    así que sin fijar ``app.tenant_id`` esa consulta devuelve cero filas y
+    revienta con ``Usuario.DoesNotExist``: un 500, y la sesión del usuario
+    imposible de renovar en cuanto caduca el access token.
+
+    El tenant sale del claim que el propio refresh token lleva firmado, así
+    que no depende del Host ni de nada que controle el cliente.
+
+    Si el token no es válido o no trae el claim, se delega en simplejwt sin
+    abrir transacción: ya responde 401 con su propio mensaje.
+    """
+    def post(self, request, *args, **kwargs):
+        tenant_id = self._tenant_id_del_refresh(request)
+
+        if tenant_id is None:
+            return super().post(request, *args, **kwargs)
+
+        try:
+            with tenant_context(tenant_id):
+                return super().post(request, *args, **kwargs)
+        except Usuario.DoesNotExist:
+            # El usuario fue eliminado o quedó fuera del alcance del tenant.
+            # Es un 401 (hay que volver a autenticarse), no un error del
+            # servidor.
+            return Response(
+                {'detail': 'La sesión ya no es válida. Vuelve a iniciar sesión.'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+    @staticmethod
+    def _tenant_id_del_refresh(request):
+        """Lee el claim ``tenant_id`` del refresh token recibido en el cuerpo.
+
+        No valida el token aquí: de eso se encarga el serializer. Solo se
+        necesita saber en qué tenant buscar al usuario. Un token corrupto o
+        caducado devuelve ``None`` y sigue el camino normal (401).
+        """
+        if not hasattr(request.data, 'get'):
+            return None
+        crudo = request.data.get('refresh')
+        if not crudo:
+            return None
+        try:
+            return RefreshToken(crudo).payload.get('tenant_id')
+        except Exception:
+            # Deliberadamente amplio: cualquier problema al leer el token
+            # (caducado, revocado, malformado) solo significa que no podemos
+            # adelantar el tenant. Nunca debe tumbar la petición: el
+            # serializer de simplejwt responderá 401 con su propio mensaje.
+            return None
 
 
 class MeView(APIView):

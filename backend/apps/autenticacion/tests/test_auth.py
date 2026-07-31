@@ -21,7 +21,7 @@ completas, así que el patrón de ``test_middleware.py`` (``TestCase`` +
 import datetime
 
 from django.core.cache import cache
-from django.test import TestCase, override_settings
+from django.test import TestCase, TransactionTestCase, override_settings
 from rest_framework_simplejwt.tokens import AccessToken
 
 from apps.core.tenant import tenant_context
@@ -453,3 +453,110 @@ class SubdominioExplicitoTestCase(TestCase):
         self.assertEqual(cuerpo['user']['tenant_id'], self.tenant_a.id)
         self.assertIn('access', cuerpo)
         self.assertIn('refresh', cuerpo)
+
+
+@override_settings(ALLOWED_HOSTS=_ALLOWED_HOSTS_PRUEBA)
+class RefrescoDeSesionTestCase(TransactionTestCase):
+    """Renovación del access token contra la base con RLS activo.
+
+    Usa TransactionTestCase y NO TestCase, deliberadamente. TestCase envuelve
+    toda la clase en una única transacción que nunca se confirma; como los
+    datos se siembran dentro de tenant_context, el app.tenant_id fijado allí
+    con set_config(..., true) sigue vigente durante todos los tests de la
+    clase. RLS entonces nunca bloquea nada y estas pruebas pasarían igual con
+    el fallo presente: comprobado por mutación.
+
+    Con TransactionTestCase cada test confirma de verdad, el contexto de
+    tenant se evapora entre transacciones, y la petición HTTP llega al
+    servidor en las mismas condiciones que en producción.
+
+    Regresión de un fallo real detectado en uso: la ruta /api/auth/refresh/
+    está exenta del middleware de tenant, pero el serializer de simplejwt
+    consulta la tabla `usuarios` para comprobar que el usuario siga activo.
+    Como esa tabla tiene RLS con FORCE, sin app.tenant_id fijado la consulta
+    devolvía cero filas y la petición reventaba con Usuario.DoesNotExist,
+    respondiendo HTTP 500.
+
+    El efecto práctico era que, al caducar el access token (60 minutos), la
+    sesión no se podía renovar y el usuario quedaba fuera de la aplicación.
+
+    Ningún test lo detectó porque el único que ejercitaba esa ruta por HTTP
+    corría sobre SQLite, antes de que existiera RLS.
+    """
+
+    databases = {"default", "ddl"}
+
+    def setUp(self):
+        # TransactionTestCase no tiene setUpTestData: los datos se siembran
+        # por test, porque entre tests se truncan las tablas.
+        cache.clear()
+        self.tenant, self.rol, self.usuario = _crear_tenant_con_usuario(
+            "refresca", "REF", "refresco@example.com",
+        )
+
+    def _tokens(self):
+        respuesta = self.client.post(
+            "/api/auth/login/",
+            data={"correo": "refresco@example.com", "password": PASSWORD},
+            content_type="application/json",
+            HTTP_HOST="refresca.testserver",
+        )
+        self.assertEqual(respuesta.status_code, 200, respuesta.content)
+        return respuesta.json()
+
+    def test_refresh_devuelve_un_access_nuevo_y_utilizable(self):
+        refresh = self._tokens()["refresh"]
+
+        respuesta = self.client.post(
+            "/api/auth/refresh/",
+            data={"refresh": refresh},
+            content_type="application/json",
+            HTTP_HOST="refresca.testserver",
+        )
+        self.assertEqual(respuesta.status_code, 200, respuesta.content)
+        access_nuevo = respuesta.json()["access"]
+
+        # El token renovado tiene que servir de verdad, no solo existir.
+        me = self.client.get(
+            "/api/auth/me/",
+            HTTP_AUTHORIZATION=f"Bearer {access_nuevo}",
+            HTTP_HOST="refresca.testserver",
+        )
+        self.assertEqual(me.status_code, 200, me.content)
+        self.assertEqual(me.json()["correo"], "refresco@example.com")
+
+    def test_refresh_conserva_el_tenant_en_el_token_renovado(self):
+        """Si el claim se perdiera al refrescar, el middleware volvería a
+        fiarse del subdominio y se reabriría la fuga entre gimnasios."""
+        refresh = self._tokens()["refresh"]
+        respuesta = self.client.post(
+            "/api/auth/refresh/",
+            data={"refresh": refresh},
+            content_type="application/json",
+            HTTP_HOST="refresca.testserver",
+        )
+        access = AccessToken(respuesta.json()["access"])
+        self.assertEqual(access["tenant_id"], self.tenant.id)
+
+    def test_refresh_reutilizado_responde_401_y_no_500(self):
+        """El backend rota y revoca el refresh anterior: reusarlo es un
+        rechazo de autenticación, no un error del servidor."""
+        refresh = self._tokens()["refresh"]
+        self.client.post(
+            "/api/auth/refresh/", data={"refresh": refresh},
+            content_type="application/json", HTTP_HOST="refresca.testserver",
+        )
+        segunda = self.client.post(
+            "/api/auth/refresh/", data={"refresh": refresh},
+            content_type="application/json", HTTP_HOST="refresca.testserver",
+        )
+        self.assertEqual(segunda.status_code, 401, segunda.content)
+
+    def test_refresh_con_token_malformado_responde_401_y_no_500(self):
+        respuesta = self.client.post(
+            "/api/auth/refresh/",
+            data={"refresh": "esto.no.es.un.token"},
+            content_type="application/json",
+            HTTP_HOST="refresca.testserver",
+        )
+        self.assertEqual(respuesta.status_code, 401, respuesta.content)
