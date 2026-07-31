@@ -21,4 +21,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('apps.autenticacion.urls')),
     path('api/', include('apps.ventas.urls')),
+    # Parte B (RF-03): /api/clientes/... -- movido por completo desde
+    # apps.ventas.urls (Parte B1), una sola implementación.
+    path('api/', include('apps.clientes.urls')),
 ]

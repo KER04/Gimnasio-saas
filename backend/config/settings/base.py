@@ -251,6 +251,15 @@ REST_FRAMEWORK = {
     # Parte D (ventas/POS): todo listado de la API debe venir paginado.
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
+    # Parte A (seguridad): límite de intentos de autenticación. Los ritmos
+    # son genéricos para un humano que se equivoca un par de veces (incluso
+    # compartiendo NAT de sede, en el caso de 'login_ip') e inútiles para
+    # fuerza bruta sostenida. Ver apps/core/throttling.py para el porqué de
+    # las dos claves y de normalizar el correo.
+    'DEFAULT_THROTTLE_RATES': {
+        'login_ip': '20/min',
+        'login_correo': '5/min',
+    },
 }
 
 
@@ -273,3 +282,43 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:4200',
     'http://127.0.0.1:4200',
 ]
+
+
+# Caché (Parte A: throttling de login)
+# https://docs.djangoproject.com/en/6.0/topics/cache/
+#
+# ¡IMPORTANTE! LocMemCache es un caché POR PROCESO (vive en la memoria del
+# propio worker de Python), no compartido. Esto tiene dos consecuencias
+# graves para el throttling de DRF (``apps/core/throttling.py``), que guarda
+# los contadores de intentos en este caché:
+#
+#   1. Con varios workers (gunicorn/uwsgi con --workers > 1, o varias
+#      réplicas del contenedor), CADA worker lleva SU PROPIA cuenta. Un
+#      límite de "5/min" se convierte en la práctica en "5/min POR WORKER":
+#      con 4 workers, un atacante dispone de hasta 20 intentos/min repartidos
+#      entre ellos sin que ninguno individualmente supere su cuota.
+#   2. El caché se pierde por completo en cada reinicio/despliegue del
+#      proceso: un atacante que agota su cuota solo tiene que esperar a que
+#      el servidor reinicie (o provocar el reinicio) para que el contador
+#      vuelva a cero.
+#
+# En resumen: en PRODUCCIÓN, el throttle solo protege de verdad con una
+# caché COMPARTIDA entre todos los workers/réplicas (Redis/Memcached). Si no
+# se define ``REDIS_URL`` (u otra variable equivalente) en el entorno, se cae
+# a LocMemCache -- adecuado para desarrollo local (un solo proceso) y para
+# la batería de pruebas, pero NO para producción con más de un worker.
+_REDIS_URL = env('REDIS_URL', default=None)
+
+if _REDIS_URL:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': _REDIS_URL,
+        },
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        },
+    }

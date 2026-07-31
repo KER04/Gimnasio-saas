@@ -69,6 +69,16 @@ class LoginTenantTestCase(TestCase):
             'authb', 'B', 'compartido@example.com',
         )
 
+    def setUp(self):
+        # Parte A (throttling): esta clase llama a /api/auth/login/ varias
+        # veces con el MISMO correo a través de distintos métodos de
+        # prueba. cache.clear() en setUpTestData solo corre una vez para
+        # toda la clase; sin limpiar también aquí (antes de CADA prueba), el
+        # contador de LoginPorCorreoThrottle (5/min) se acumularía entre
+        # métodos y una prueba tardía podría recibir 429 en vez del código
+        # que realmente está probando.
+        cache.clear()
+
     def test_mismo_correo_en_dos_tenants_cada_uno_entra_a_lo_suyo(self):
         """Escenario 2: el mismo correo existe en A y en B (regla de negocio
         que motivó todo el diseño). Login en cada subdominio debe entrar al
@@ -171,6 +181,13 @@ class TenantCruzadoTestCase(TestCase):
             'cruzb', 'B', 'usuario.b@example.com',
         )
 
+    def setUp(self):
+        # Ver el comentario equivalente en LoginTenantTestCase.setUp: varios
+        # métodos de esta clase loguean al mismo usuario ('usuario.a@...'),
+        # y el throttle por correo (5/min) acumularía intentos entre
+        # métodos sin esto.
+        cache.clear()
+
     def _login(self, subdominio, correo):
         respuesta = self.client.post(
             '/api/auth/login/',
@@ -268,6 +285,9 @@ class RegisterTenantTestCase(TestCase):
             'registro', 'R', 'ya-existe@example.com',
         )
 
+    def setUp(self):
+        cache.clear()
+
     def test_registro_sin_tenant_resuelto_da_400(self):
         respuesta = self.client.post(
             '/api/auth/register/',
@@ -339,6 +359,15 @@ class SubdominioExplicitoTestCase(TestCase):
         cls.tenant_b, cls.rol_b, cls.usuario_b = _crear_tenant_con_usuario(
             'explb', 'ExplB', 'compartido.expl@example.com',
         )
+
+    def setUp(self):
+        # Ver el comentario equivalente en LoginTenantTestCase.setUp: esta
+        # clase es la que más veces reutiliza el mismo correo
+        # ('compartido.expl@...') entre métodos de prueba distintos -- sin
+        # limpiar el caché antes de cada uno, el throttle por correo
+        # (5/min) terminaría bloqueando una prueba tardía con 429 en vez del
+        # código que en realidad se quiere comprobar.
+        cache.clear()
 
     def test_login_host_sin_subdominio_con_subdominio_en_cuerpo_da_200(self):
         """Escenario 1 (LA CAPACIDAD NUEVA)."""

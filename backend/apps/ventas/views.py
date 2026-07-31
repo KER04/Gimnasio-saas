@@ -11,7 +11,6 @@ from rest_framework.decorators import action
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 
-from apps.clientes.models import Cliente
 from apps.core.permissions import TienePermiso
 from apps.inventario.models import Producto
 from apps.membresias.models import Plan
@@ -20,7 +19,6 @@ from .models import Venta
 from .serializers import (
     AbonoInputSerializer,
     AnularVentaInputSerializer,
-    ClienteResumenSerializer,
     PlanSerializer,
     ProductoSerializer,
     VentaCreateSerializer,
@@ -31,6 +29,15 @@ from .services import VentaError, anular_venta, registrar_abono
 
 # ---------------------------------------------------------------------------
 # Endpoints de apoyo del POS
+#
+# NOTA (Parte B1 del encargo de clientes, RF-03): el endpoint de búsqueda de
+# clientes (antes ``ClienteListView``/``GET /api/clientes/?buscar=``) se
+# trasladó por completo a ``apps.clientes`` -- ver
+# ``apps/clientes/views.py::ClienteViewSet`` y ``apps/clientes/urls.py``. El
+# buscador del POS sigue funcionando exactamente igual (mismo método HTTP,
+# misma URL, mismo parámetro ``buscar``, mismo permiso ``clientes.ver``):
+# solo cambió DÓNDE vive la implementación, para no tener dos endpoints de
+# clientes duplicados.
 # ---------------------------------------------------------------------------
 
 class ProductoListView(ListAPIView):
@@ -62,22 +69,6 @@ class PlanListView(ListAPIView):
 
     def get_queryset(self):
         return Plan.objects.filter(activo=True).order_by('nombre')
-
-
-class ClienteListView(ListAPIView):
-    """``GET /api/clientes/?buscar=<texto>`` (``clientes.ver``): busca por
-    nombre o cédula, para el buscador del POS."""
-
-    serializer_class = ClienteResumenSerializer
-    permission_classes = [TienePermiso]
-    permiso_requerido = 'clientes.ver'
-
-    def get_queryset(self):
-        qs = Cliente.objects.filter(eliminado_en__isnull=True)
-        buscar = self.request.query_params.get('buscar')
-        if buscar:
-            qs = qs.filter(Q(nombre__icontains=buscar) | Q(cedula__icontains=buscar))
-        return qs.order_by('nombre')
 
 
 # ---------------------------------------------------------------------------

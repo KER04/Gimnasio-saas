@@ -8,6 +8,11 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from apps.core.tenant import tenant_context
+from apps.core.throttling import (
+    LoginPorCorreoThrottle,
+    LoginPorIPThrottle,
+    MensajeThrottleEnEspanolMixin,
+)
 from apps.organizacion.models import Usuario
 
 from .serializers import LoginSerializer, RegisterSerializer, UsuarioSerializer
@@ -112,8 +117,14 @@ def _transaccion_tenant_ya_abierta(tenant_id, using='default'):
     return valor == str(tenant_id)
 
 
-class LoginView(TokenObtainPairView):
+class LoginView(MensajeThrottleEnEspanolMixin, TokenObtainPairView):
     """Login: devuelve access, refresh y los datos del usuario.
+
+    Parte A (límite de intentos): lleva los DOS throttles de
+    ``apps.core.throttling`` -- por IP y por correo normalizado -- porque se
+    complementan (ver el docstring de ese módulo sobre por qué ninguno solo
+    basta). El mensaje del 429 sale en español gracias a
+    ``MensajeThrottleEnEspanolMixin``.
 
     El tenant puede llegar de dos formas, combinadas por
     ``_resolver_tenant_login_register`` (ver encargo "el API debe poder
@@ -146,6 +157,7 @@ class LoginView(TokenObtainPairView):
     """
     serializer_class = LoginSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [LoginPorIPThrottle, LoginPorCorreoThrottle]
 
     def post(self, request, *args, **kwargs):
         tenant, error = _resolver_tenant_login_register(request)
@@ -168,16 +180,22 @@ class LoginView(TokenObtainPairView):
             return super().post(request, *args, **kwargs)
 
 
-class RegisterView(generics.CreateAPIView):
+class RegisterView(MensajeThrottleEnEspanolMixin, generics.CreateAPIView):
     """Registro de nuevos usuarios DENTRO del tenant resuelto (subdominio
     del cuerpo, con el subdominio del Host como respaldo -- ver
     ``_resolver_tenant_login_register``).
 
     Sigue con AllowAny (pendiente de restringir, ver encargo), pero exige un
     tenant resuelto: sin él, 400 -- no existe un usuario "sin gimnasio".
+
+    Parte A: solo throttle por IP (evita creación masiva de cuentas desde
+    una misma máquina). No tiene sentido el throttle por correo aquí -- cada
+    registro trae un correo distinto casi por definición, y el objetivo es
+    frenar el VOLUMEN de altas, no proteger una cuenta concreta.
     """
     serializer_class = RegisterSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [LoginPorIPThrottle]
 
     def create(self, request, *args, **kwargs):
         tenant, error = _resolver_tenant_login_register(request)
@@ -222,8 +240,12 @@ class RegisterView(generics.CreateAPIView):
         return Response(data, status=status.HTTP_201_CREATED, headers=headers)
 
 
-class RefreshView(TokenRefreshView):
+class RefreshView(MensajeThrottleEnEspanolMixin, TokenRefreshView):
     """Renueva el access token, fijando antes el tenant del propio refresh token.
+
+    Parte A: throttle por IP (reutiliza el scope ``login_ip``: no hay un
+    correo que leer de un cuerpo que solo trae ``refresh``, así que el
+    throttle por correo no aplicaría aquí de todas formas).
 
     Hace falta envolver la vista de simplejwt porque su serializer verifica
     que el usuario siga existiendo y activo::
@@ -241,6 +263,8 @@ class RefreshView(TokenRefreshView):
     Si el token no es válido o no trae el claim, se delega en simplejwt sin
     abrir transacción: ya responde 401 con su propio mensaje.
     """
+    throttle_classes = [LoginPorIPThrottle]
+
     def post(self, request, *args, **kwargs):
         tenant_id = self._tenant_id_del_refresh(request)
 

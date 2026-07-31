@@ -82,17 +82,6 @@ class PlanSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class ClienteResumenSerializer(serializers.ModelSerializer):
-    """Lectura mínima para el buscador de clientes del POS (no expone datos
-    sensibles como huellas ni autorizaciones: eso vive en la ficha completa
-    del cliente, fuera del alcance de este encargo)."""
-
-    class Meta:
-        model = Cliente
-        fields = ('id', 'nombre', 'cedula', 'telefono', 'activo')
-        read_only_fields = fields
-
-
 # ---------------------------------------------------------------------------
 # Lectura de ventas
 # ---------------------------------------------------------------------------
