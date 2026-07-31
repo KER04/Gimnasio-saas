@@ -46,6 +46,12 @@ from apps.entrenamiento.models import GrupoMuscular
 from apps.inventario.models import CategoriaProducto
 from apps.organizacion.models import Permiso, Rol, RolPermiso, SecuenciaComprobante, Sede, UsuarioSede
 from apps.plataforma.models import Tenant
+from apps.plataforma.subdominios import (
+    SubdominioInvalido,
+    buscar_disponible,
+    proponer_subdominio,
+    validar_subdominio,
+)
 from apps.ventas.models import CategoriaGasto, CategoriaIngreso
 
 Usuario = get_user_model()
@@ -147,7 +153,14 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--nombre', required=True, help='Nombre comercial del gimnasio.')
-        parser.add_argument('--subdominio', required=True, help='Subdominio único (minúsculas).')
+        parser.add_argument(
+            '--subdominio',
+            help=(
+                'Subdominio único. Si se omite, se propone a partir del nombre. '
+                'Conviene indicarlo a mano cuando la propuesta quede larga o '
+                'poco comercial: es la URL que verá el cliente.'
+            ),
+        )
         parser.add_argument('--correo', required=True, help='Correo del usuario administrador.')
         parser.add_argument('--password', required=True, help='Contraseña del usuario administrador.')
         parser.add_argument(
@@ -155,18 +168,48 @@ class Command(BaseCommand):
             help='Nombre de la primera sede (por defecto "Sede Principal").',
         )
 
+    @staticmethod
+    def _esta_ocupado(subdominio):
+        return Tenant.objects.using('ddl').filter(subdominio__iexact=subdominio).exists()
+
+    def _resolver_subdominio(self, nombre, subdominio_pedido):
+        """Decide el subdominio final y lo valida.
+
+        Si el operador lo indicó a mano y ya está ocupado, falla en vez de
+        buscarle una variante: le daría una URL que no pidió y de la que no
+        se enteraría hasta que el cliente se quejara. Cuando se propone
+        automáticamente sí se busca la siguiente libre, porque ahí no hay
+        ninguna expectativa que romper.
+        """
+        if subdominio_pedido:
+            subdominio = subdominio_pedido.strip().lower()
+            try:
+                validar_subdominio(subdominio)
+            except SubdominioInvalido as exc:
+                raise CommandError(str(exc)) from exc
+            if self._esta_ocupado(subdominio):
+                raise CommandError(
+                    f'Ya existe un gimnasio con el subdominio "{subdominio}". '
+                    'Elige otro o borra el existente antes de reintentar.'
+                )
+            return subdominio
+
+        try:
+            propuesta = proponer_subdominio(nombre)
+            validar_subdominio(propuesta)
+            subdominio = buscar_disponible(propuesta, self._esta_ocupado)
+        except SubdominioInvalido as exc:
+            raise CommandError(str(exc)) from exc
+
+        self.stdout.write(f'Subdominio propuesto a partir del nombre: "{subdominio}"')
+        return subdominio
+
     def handle(self, *args, **options):
         nombre = options['nombre'].strip()
-        subdominio = options['subdominio'].strip().lower()
         correo = options['correo'].strip().lower()
         password = options['password']
         nombre_sede = options['sede'].strip()
-
-        if Tenant.objects.using('ddl').filter(subdominio__iexact=subdominio).exists():
-            raise CommandError(
-                f'Ya existe un tenant con el subdominio "{subdominio}". '
-                'Elige otro o borra el tenant existente antes de reintentar.'
-            )
+        subdominio = self._resolver_subdominio(nombre, options.get('subdominio'))
 
         try:
             with transaction.atomic(using='ddl'):
