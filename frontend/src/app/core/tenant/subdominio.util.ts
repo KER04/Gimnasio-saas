@@ -1,69 +1,48 @@
 /**
- * Resolución de tenant a partir del `hostname` del navegador, en el
- * frontend (contraparte de `_subdominio_desde_host` en
- * `apps/core/middleware.py` del backend).
+ * Extrae el subdominio del gimnasio a partir del hostname del navegador.
  *
- * Existe porque el login/register ya no dependen EXCLUSIVAMENTE del Host
- * que ve el backend: si Angular se sirve en `gimx.tuapp.com` pero el API
- * vive en `api.tuapp.com`, el backend nunca ve el subdominio del gimnasio
- * en el `Host` de la petición. `AuthService` usa esta función para rellenar
- * el campo `subdominio` del cuerpo de login/register con lo que el propio
- * navegador sí conoce: la URL en la que el usuario está parado.
+ * En producción cada gimnasio entra por su propia URL
+ * (`gimnasio1.miapp.com`), así que el subdominio identifica al tenant sin que
+ * el usuario tenga que escribir nada. En desarrollo, entrando por `localhost`
+ * a secas, no hay nada que deducir y hay que pedírselo.
+ *
+ * Función pura y sin dependencias de Angular: se puede probar sin navegador,
+ * que importa porque Karma necesita Chrome y no siempre está disponible.
  */
 
-/** IPv4 literal (`127.0.0.1`, `10.0.0.5`, ...): nunca tiene subdominio de tenant. */
-const IPV4_REGEX = /^\d{1,3}(\.\d{1,3}){3}$/;
+/** `127.0.0.1` tiene cuatro segmentos separados por puntos igual que un
+ * dominio, así que sin esto se interpretaría `127` como subdominio. */
+const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
 
-/**
- * Extrae el subdominio (tenant) de un `hostname`, o `null` si no aplica.
- *
- * Casos cubiertos:
- * - `'gimx.tuapp.com'` -> `'gimx'` (producción: subdominio.dominio.tld).
- * - `'gimx.localhost'` -> `'gimx'` (desarrollo local: los navegadores
- *   resuelven cualquier `*.localhost` a 127.0.0.1 sin tocar `/etc/hosts` ni
- *   DNS -- `localhost` no es un TLD real, así que 2 segmentos ya bastan
- *   para tratar el primero como subdominio).
- * - `'localhost'`, `'127.0.0.1'`, `'tuapp.com'` -> `null` (host "desnudo",
- *   sin subdominio de tenant; un dominio de producción de 2 segmentos NO
- *   se confunde con un subdominio real -- para eso se exigen 3+ segmentos
- *   fuera del caso especial `*.localhost`).
- *
- * Pura y defensiva: se espera recibir solo el hostname (sin protocolo, sin
- * puerto, sin path -- lo que da `window.location.hostname`), pero por si
- * acaso llega con puerto (`'gimx.localhost:4200'`) o en mayúsculas, los
- * normaliza de todas formas antes de analizarlo.
- */
 export function subdominioDesdeHostname(hostname: string): string | null {
   if (!hostname) {
     return null;
   }
 
-  // Defensivo: si por error llegara con puerto, se descarta (se ignora el
-  // puerto, como pide el encargo). window.location.hostname normal ya NO
-  // trae puerto, pero no cuesta nada ser tolerante.
-  const sinPuerto = hostname.split(':')[0].trim().toLowerCase();
+  // Defensivo: la firma espera un hostname, pero es fácil pasarle un `host`
+  // (que incluye el puerto) sin darse cuenta.
+  const limpio = hostname.split(':')[0].trim().toLowerCase();
 
-  if (!sinPuerto || sinPuerto === 'localhost' || IPV4_REGEX.test(sinPuerto)) {
+  if (!limpio || limpio === 'localhost' || IPV4.test(limpio)) {
     return null;
   }
 
-  const partes = sinPuerto.split('.').filter((parte) => parte.length > 0);
+  const partes = limpio.split('.').filter((parte) => parte.length > 0);
 
   if (partes.length < 2) {
     return null;
   }
 
-  // Caso especial de desarrollo: cualquier `*.localhost` -- 'localhost' no
-  // es un TLD real, así que no hace falta un tercer segmento para que el
-  // primero sea un subdominio genuino.
+  // `gimx.localhost` -> `gimx`. Los navegadores resuelven cualquier
+  // `*.localhost` a la máquina local, así que en desarrollo se puede
+  // reproducir exactamente el comportamiento de producción sin tocar DNS.
   if (partes[partes.length - 1] === 'localhost') {
     return partes[0];
   }
 
-  // Producción: se exige subdominio.dominio.tld (3+ segmentos). Un host de
-  // solo 2 segmentos (p. ej. 'tuapp.com') es el dominio "desnudo", sin
-  // subdominio -- devolver 'tuapp' ahí sería inventar un tenant que no
-  // existe.
+  // A partir de aquí hacen falta TRES segmentos. Con dos estamos ante un
+  // dominio desnudo (`miapp.com`), no ante un subdominio: devolver `miapp`
+  // sería inventarse un gimnasio que no existe.
   if (partes.length < 3) {
     return null;
   }

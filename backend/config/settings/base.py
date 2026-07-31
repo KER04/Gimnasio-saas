@@ -283,6 +283,23 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:4200',
 ]
 
+# Además de los anteriores, se aceptan los subdominios de localhost
+# (`migimnasio.localhost:4200`).
+#
+# Hace falta para poder desarrollar exactamente como funciona producción: allí
+# cada gimnasio entra por su propia URL y el frontend deduce el subdominio del
+# hostname, así que el campo "código de gimnasio" ni se muestra. Entrando por
+# `localhost` a secas no hay subdominio que deducir y el flujo local deja de
+# parecerse al real, que es como se cuelan los fallos que solo aparecen al
+# desplegar.
+#
+# El patrón está acotado a `localhost` a propósito: en producción hay que
+# añadir aquí el dominio real (`^https://[a-z0-9-]+\.miapp\.com$`), nunca un
+# comodín abierto.
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r'^http://[a-z0-9-]+\.localhost:4200$',
+]
+
 
 # Caché (Parte A: throttling de login)
 # https://docs.djangoproject.com/en/6.0/topics/cache/

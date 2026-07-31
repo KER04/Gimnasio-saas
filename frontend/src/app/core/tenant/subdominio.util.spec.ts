@@ -1,44 +1,34 @@
 import { subdominioDesdeHostname } from './subdominio.util';
 
 describe('subdominioDesdeHostname', () => {
-  it('extrae el subdominio de un host de producción (subdominio.dominio.tld)', () => {
-    expect(subdominioDesdeHostname('gimx.tuapp.com')).toBe('gimx');
+  it('extrae el subdominio de un dominio de producción', () => {
+    expect(subdominioDesdeHostname('gimnasio1.miapp.com')).toBe('gimnasio1');
+    expect(subdominioDesdeHostname('powerfit.miapp.com')).toBe('powerfit');
   });
 
-  it('extrae el subdominio de un host *.localhost de desarrollo', () => {
+  it('soporta *.localhost, que es como se reproduce producción en local', () => {
     expect(subdominioDesdeHostname('gimx.localhost')).toBe('gimx');
   });
 
-  it('devuelve null para "localhost" a secas', () => {
+  it('devuelve null cuando no hay gimnasio que deducir', () => {
     expect(subdominioDesdeHostname('localhost')).toBeNull();
-  });
-
-  it('devuelve null para "127.0.0.1"', () => {
     expect(subdominioDesdeHostname('127.0.0.1')).toBeNull();
-  });
-
-  it('devuelve null para un dominio "desnudo" de 2 segmentos (sin subdominio)', () => {
-    expect(subdominioDesdeHostname('tuapp.com')).toBeNull();
-  });
-
-  it('ignora el puerto si llegara incluido por error', () => {
-    expect(subdominioDesdeHostname('gimx.localhost:4200')).toBe('gimx');
-    expect(subdominioDesdeHostname('gimx.tuapp.com:443')).toBe('gimx');
-  });
-
-  it('es insensible a mayúsculas', () => {
-    expect(subdominioDesdeHostname('GIMX.TUAPP.COM')).toBe('gimx');
-  });
-
-  it('devuelve null para una cadena vacía', () => {
+    expect(subdominioDesdeHostname('192.168.1.50')).toBeNull();
     expect(subdominioDesdeHostname('')).toBeNull();
   });
 
-  it('devuelve null para otra IPv4 cualquiera', () => {
-    expect(subdominioDesdeHostname('10.0.0.5')).toBeNull();
+  it('NO confunde un dominio desnudo con un subdominio', () => {
+    // El caso sutil: `miapp.com` tiene dos segmentos igual que
+    // `gimx.localhost`, pero aquí `miapp` es el dominio, no un gimnasio.
+    expect(subdominioDesdeHostname('miapp.com')).toBeNull();
   });
 
-  it('soporta un tercer nivel de subdominio, quedándose con el primer segmento', () => {
-    expect(subdominioDesdeHostname('gimx.staging.tuapp.com')).toBe('gimx');
+  it('normaliza mayúsculas y tolera que le pasen el puerto', () => {
+    expect(subdominioDesdeHostname('GIMX.MIAPP.COM')).toBe('gimx');
+    expect(subdominioDesdeHostname('gimx.miapp.com:4200')).toBe('gimx');
+  });
+
+  it('con subdominios anidados devuelve el primero', () => {
+    expect(subdominioDesdeHostname('a.b.miapp.com')).toBe('a');
   });
 });
