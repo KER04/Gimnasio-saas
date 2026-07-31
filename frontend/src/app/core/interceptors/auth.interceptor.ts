@@ -22,9 +22,17 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   return next(requestConToken).pipe(
     catchError((error: unknown) => {
       const esNoAutorizado = error instanceof HttpErrorResponse && error.status === 401;
-      const esPeticionDeRefresh = req.url.includes('/refresh/');
 
-      if (!esNoAutorizado || esPeticionDeRefresh) {
+      // En las rutas públicas de autenticación un 401 significa "credenciales
+      // incorrectas", no "sesión caducada": no hay nada que refrescar.
+      //
+      // Intentarlo tenía una consecuencia peor que la petición de más: como
+      // en ese momento no hay ningún refresh token guardado, el intento
+      // fallaba con "No hay refresh token almacenado" y ESE error llegaba a
+      // la pantalla, tapando el mensaje real del servidor. Un usuario que se
+      // equivocaba de contraseña veía "Ocurrió un error inesperado" en lugar
+      // de que su contraseña no era correcta.
+      if (!esNoAutorizado || esRutaPublica(req.url)) {
         return throwError(() => error);
       }
 

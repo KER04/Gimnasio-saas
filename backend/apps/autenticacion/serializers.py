@@ -103,6 +103,21 @@ class LoginSerializer(TokenObtainPairSerializer):
 
     subdominio = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
+    # simplejwt responde en inglés ("No active account found with the given
+    # credentials"), y ese texto llega tal cual a la pantalla de login. Se
+    # reemplaza por uno en español y menos técnico: al usuario le da igual el
+    # concepto de "cuenta activa", lo que necesita saber es qué revisar.
+    #
+    # No distingue entre "el correo no existe" y "la contraseña no coincide",
+    # a propósito: decirlo permitiría averiguar qué correos están registrados
+    # en un gimnasio probando uno por uno.
+    default_error_messages = {
+        'no_active_account': (
+            'Correo o contraseña incorrectos. Revisa también que el código '
+            'de gimnasio sea el correcto.'
+        ),
+    }
+
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
