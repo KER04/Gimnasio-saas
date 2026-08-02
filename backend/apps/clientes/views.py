@@ -165,3 +165,31 @@ class ClienteViewSet(
         if page is not None:
             return self.get_paginated_response(serializer.data)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['get'])
+    def asistencias(self, request, pk=None):
+        """``GET /api/clientes/{id}/asistencias/`` (``clientes.ver``):
+        historial de ingresos del cliente, más reciente primero y paginado
+        -- completa la pestaña de asistencia de la ficha (RF-03, RF-15).
+
+        Importa de ``apps.asistencia`` en vez de al revés (esa app no
+        depende de ``apps.clientes`` en sus vistas) para no crear un import
+        circular entre los dos módulos.
+        """
+        from apps.asistencia.models import Asistencia
+        from apps.asistencia.serializers import AsistenciaSerializer
+
+        cliente = self.get_object()
+        asistencias = (
+            Asistencia.objects.filter(cliente=cliente)
+            .select_related('sede', 'autorizado_por', 'venta')
+            .order_by('-fecha_hora')
+        )
+
+        page = self.paginate_queryset(asistencias)
+        objetos = page if page is not None else asistencias
+        serializer = AsistenciaSerializer(objetos, many=True, context=self.get_serializer_context())
+
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
+        return Response(serializer.data)

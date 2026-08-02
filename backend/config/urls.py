@@ -29,4 +29,6 @@ urlpatterns = [
     path('api/', include('apps.membresias.urls')),
     # /api/sedes/ (solo lectura).
     path('api/', include('apps.organizacion.urls')),
+    # /api/asistencias/... (RF-15, sin biometría: el lector aún no llegó).
+    path('api/', include('apps.asistencia.urls')),
 ]
