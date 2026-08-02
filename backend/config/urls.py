@@ -24,4 +24,9 @@ urlpatterns = [
     # Parte B (RF-03): /api/clientes/... -- movido por completo desde
     # apps.ventas.urls (Parte B1), una sola implementación.
     path('api/', include('apps.clientes.urls')),
+    # Endpoints de membresías (asignación directa, renovar, cancelar,
+    # tablero de vencimientos): /api/membresias/...
+    path('api/', include('apps.membresias.urls')),
+    # /api/sedes/ (solo lectura).
+    path('api/', include('apps.organizacion.urls')),
 ]

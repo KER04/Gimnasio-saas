@@ -23,8 +23,6 @@ Cualquier error de base de datos que se escape (constraint violado, o el
 aquí mismo a ``VentaError`` con un mensaje limpio, para que la vista nunca
 tenga que lidiar con excepciones de psycopg/Django directamente.
 """
-import datetime
-import json
 from decimal import Decimal
 
 from django.db import DatabaseError, connections, transaction
@@ -32,7 +30,9 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from apps.auditoria.models import Auditoria
+from apps.auditoria.services import registrar_auditoria as _registrar_auditoria
 from apps.membresias.models import Membresia, Plan
+from apps.membresias.services import calcular_fechas_renovacion
 
 from .models import CategoriaIngreso, DetalleVenta, Pago, Venta
 
@@ -69,38 +69,6 @@ def _siguiente_consecutivo(sede_id, using='default'):
     with connections[using].cursor() as cursor:
         cursor.execute('SELECT fn_siguiente_consecutivo(%s)', [sede_id])
         return cursor.fetchone()[0]
-
-
-def _registrar_auditoria(
-    *, tenant_id, usuario_id, sede_id, entidad, entidad_id, accion,
-    valor_anterior, valor_nuevo, using='default',
-):
-    """Inserta una fila en ``auditoria`` (Parte C4 / RF-02).
-
-    Se hace con SQL directo (no ``Auditoria.objects.create()``) porque la
-    columna ``id`` real es ``GENERATED ALWAYS AS IDENTITY`` -- Postgres
-    rechaza cualquier INSERT que mencione esa columna con un valor explícito
-    (incluido NULL) a menos que se use ``OVERRIDING SYSTEM VALUE``. El modelo
-    ``Auditoria`` (``managed=False``, PK compuesta ``(id, fecha_hora)``,
-    ver ``apps/auditoria/models.py``) no puede declarar ``id`` como
-    ``AutoField`` por esa misma PK compuesta, así que el ORM siempre
-    incluiría la columna en el INSERT. Omitiéndola aquí, Postgres genera el
-    valor solo.
-    """
-    with connections[using].cursor() as cursor:
-        cursor.execute(
-            """
-            INSERT INTO auditoria
-                (tenant_id, usuario_id, sede_id, entidad, entidad_id, accion,
-                 valor_anterior, valor_nuevo)
-            VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb)
-            """,
-            [
-                tenant_id, usuario_id, sede_id, entidad, entidad_id, accion,
-                json.dumps(valor_anterior) if valor_anterior is not None else None,
-                json.dumps(valor_nuevo) if valor_nuevo is not None else None,
-            ],
-        )
 
 
 # RF-07: mapeo entre el tipo de plan y la subcategoría de ingreso "Planes"
@@ -454,12 +422,17 @@ def _registrar_membresia_si_aplica(
         .first()
     )
 
-    if membresia_anterior is not None:
-        nueva_fecha_inicio = membresia_anterior.fecha_fin
-    else:
-        nueva_fecha_inicio = fecha_inicio_solicitada
-
-    nueva_fecha_fin = nueva_fecha_inicio + datetime.timedelta(days=plan.duracion_dias)
+    # El cálculo de encadenado (RF-16) vive en un único lugar
+    # (``apps.membresias.services.calcular_fechas_renovacion``), reutilizado
+    # aquí y desde ``apps.membresias.services.renovar_membresia`` (endpoint
+    # dedicado ``POST /api/membresias/{id}/renovar/``): si esta cuenta
+    # divergiera entre los dos sitios, un cliente perdería días ya pagados
+    # sin que nadie lo note.
+    nueva_fecha_inicio, nueva_fecha_fin = calcular_fechas_renovacion(
+        membresia_anterior=membresia_anterior,
+        plan=plan,
+        fecha_referencia=fecha_inicio_solicitada,
+    )
 
     return Membresia.objects.using(using).create(
         tenant=tenant,

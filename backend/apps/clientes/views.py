@@ -15,7 +15,8 @@ from rest_framework.response import Response
 
 from apps.auditoria.models import VistaMembresiaEstado, VistaVentaSaldo
 from apps.core.permissions import TienePermiso
-from apps.ventas.models import DetalleVenta, Pago
+from apps.ventas.models import DetalleVenta, Pago, Venta
+from apps.ventas.serializers import VentaSerializer
 
 from .models import Cliente
 from .serializers import (
@@ -135,3 +136,32 @@ class ClienteViewSet(
             'total_adeudado': str(total_adeudado),
             'ventas': VentaSaldoSerializer(resultado, many=True).data,
         })
+
+    @action(detail=True, methods=['get'])
+    def compras(self, request, pk=None):
+        """``GET /api/clientes/{id}/compras/`` (``clientes.ver``): historial
+        de ventas del cliente, más reciente primero y paginado (Parte B de
+        la ficha, pestaña "compras").
+
+        Reutiliza ``VentaSerializer`` de ``apps.ventas`` -- las mismas
+        líneas, los mismos pagos y el mismo criterio para ocultar
+        ``costo_unitario`` a quien no tenga ``costos.ver`` (Parte D del
+        encargo de ventas/POS) -- para no reimplementar esa lógica aquí.
+        Incluye también las ventas anuladas, marcadas como tales
+        (``estado='anulada'``): el histórico de compras no se oculta.
+        """
+        cliente = self.get_object()
+        ventas = (
+            Venta.objects.filter(cliente=cliente)
+            .select_related('sede', 'cliente', 'usuario', 'anulada_por')
+            .prefetch_related('detalles', 'pagos')
+            .order_by('-fecha_hora')
+        )
+
+        page = self.paginate_queryset(ventas)
+        objetos = page if page is not None else ventas
+        serializer = VentaSerializer(objetos, many=True, context=self.get_serializer_context())
+
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
+        return Response(serializer.data)
