@@ -1,1 +1,108 @@
-<p>aside works!</p>
+<!-- Capa oscura semitransparente del cajón móvil. -->
+@if (layoutService.abierto()) {
+  <div class="fixed inset-0 z-40 bg-black/40 md:hidden" (click)="layoutService.cerrar()"></div>
+}
+
+<aside
+  class="fixed inset-y-0 left-0 z-50 flex h-screen w-64 shrink-0 flex-col gap-6 overflow-y-auto border-r border-surface-border bg-white p-4 transition-transform duration-200 ease-out md:static md:z-auto md:h-auto md:min-h-full md:translate-x-0"
+  [class.-translate-x-full]="!layoutService.abierto()"
+>
+  <!-- Tarjeta de gimnasio + sede. -->
+  <div class="card-base flex items-start gap-3 p-4">
+    <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700">
+      <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6" />
+      </svg>
+    </span>
+    <div class="min-w-0">
+      <p class="truncate font-display text-sm font-semibold text-text-principal">
+        {{ authService.nombreGimnasio() ?? '···' }}
+      </p>
+      @if (authService.sedeActual(); as sede) {
+        <p class="truncate text-sm text-neutral-500">{{ sede.nombre }}</p>
+      } @else {
+        <p class="truncate text-sm italic text-neutral-400">Sin sede asignada</p>
+      }
+    </div>
+  </div>
+
+  <!-- Acción destacada. -->
+  @if (puedeCrearCliente()) {
+    <button type="button" class="btn-primary w-full" (click)="irANuevoCliente()">
+      <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14" />
+      </svg>
+      Nuevo cliente
+    </button>
+  }
+
+  <!-- Navegación, filtrada por permiso. -->
+  <nav class="flex flex-1 flex-col gap-1 text-sm font-medium">
+    @for (item of itemsVisibles(); track item.id) {
+      @if (item.disponible) {
+        <a
+          [routerLink]="item.ruta"
+          routerLinkActive="bg-primary-500 text-white"
+          class="flex min-h-11 items-center gap-3 rounded-field px-3 py-2 text-text-principal transition-colors hover:bg-neutral-50"
+          (click)="alNavegar()"
+        >
+          <ng-container [ngTemplateOutlet]="icono" [ngTemplateOutletContext]="{ id: item.id }" />
+          <span>{{ item.etiqueta }}</span>
+        </a>
+      } @else {
+        <div
+          class="flex min-h-11 cursor-not-allowed items-center gap-3 rounded-field px-3 py-2 text-neutral-400"
+          [attr.title]="item.etiqueta + ': todavía no disponible'"
+        >
+          <ng-container [ngTemplateOutlet]="icono" [ngTemplateOutletContext]="{ id: item.id }" />
+          <span class="flex-1">{{ item.etiqueta }}</span>
+          <span class="badge-neutral">Pronto</span>
+        </div>
+      }
+    }
+  </nav>
+
+  <!-- Cerrar sesión. -->
+  <button type="button" class="btn-outlined w-full" (click)="cerrarSesion()">
+    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path stroke-linecap="round" stroke-linejoin="round" d="M16 17l5-5-5-5" />
+      <path stroke-linecap="round" stroke-linejoin="round" d="M21 12H9" />
+    </svg>
+    Cerrar sesión
+  </button>
+</aside>
+
+<!-- Iconos de la navegación, reutilizados en el estado disponible y en el atenuado. -->
+<ng-template #icono let-id="id">
+  <svg class="size-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+    @switch (id) {
+      @case ('dashboard') {
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 13h8V3H3v10Zm0 8h8v-6H3v6Zm10 0h8V11h-8v10Zm0-18v6h8V3h-8Z" />
+      }
+      @case ('clientes') {
+        <path stroke-linecap="round" stroke-linejoin="round" d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
+        <circle cx="10" cy="7" r="4" />
+        <path stroke-linecap="round" stroke-linejoin="round" d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+      }
+      @case ('pos') {
+        <circle cx="9" cy="21" r="1" />
+        <circle cx="20" cy="21" r="1" />
+        <path stroke-linecap="round" stroke-linejoin="round" d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+      }
+      @case ('membresias') {
+        <rect x="2" y="5" width="20" height="14" rx="2" />
+        <path stroke-linecap="round" stroke-linejoin="round" d="M2 10h20M6 15h4" />
+      }
+      @case ('asistencia') {
+        <rect x="3" y="4" width="18" height="18" rx="2" />
+        <path stroke-linecap="round" stroke-linejoin="round" d="M16 2v4M8 2v4M3 10h18" />
+        <path stroke-linecap="round" stroke-linejoin="round" d="m9 16 2 2 4-4" />
+      }
+      @case ('reportes') {
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18h18" />
+        <path stroke-linecap="round" stroke-linejoin="round" d="M18 17V9M13 17V5M8 17v-4" />
+      }
+    }
+  </svg>
+</ng-template>

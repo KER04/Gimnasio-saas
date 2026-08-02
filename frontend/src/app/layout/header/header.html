@@ -1,1 +1,79 @@
-<p>header works!</p>
+<header class="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-surface-border bg-white px-4 py-3 md:px-6">
+  <!-- Botón de menú, solo móvil: abre el cajón lateral. -->
+  <button
+    type="button"
+    class="btn-icon md:hidden"
+    (click)="layoutService.alternar()"
+    aria-label="Abrir menú de navegación"
+  >
+    <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  </button>
+
+  <!-- Marca: gimnasio de la sesión. -->
+  <span class="truncate font-display text-lg font-bold text-primary-700">
+    {{ authService.nombreGimnasio() ?? '···' }}
+  </span>
+
+  <!-- Buscador global de clientes (RF-03). Ocupa toda la fila en móvil. -->
+  <form class="relative order-3 w-full md:order-none md:ml-4 md:w-auto md:max-w-md md:flex-1" (ngSubmit)="buscar()">
+    <svg
+      class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-neutral-400"
+      viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>
+    <input
+      type="search"
+      class="field-search"
+      placeholder="Buscar clientes…"
+      [formControl]="busqueda"
+      aria-label="Buscar clientes"
+    />
+  </form>
+
+  <!-- Chip de usuario. -->
+  <div class="relative ml-auto">
+    <button
+      type="button"
+      class="flex min-h-11 items-center gap-2 rounded-field px-2 py-1 transition-colors hover:bg-neutral-50"
+      (click)="alternarMenu()"
+      [attr.aria-expanded]="menuAbierto()"
+      aria-haspopup="true"
+    >
+      <span
+        class="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary-500 font-display text-sm font-semibold text-white"
+      >
+        {{ iniciales() }}
+      </span>
+      <span class="hidden text-left sm:block">
+        <span class="block truncate text-sm font-semibold leading-tight text-text-principal">
+          {{ nombreCompleto() || '···' }}
+        </span>
+        <span class="block truncate font-mono text-[10px] uppercase leading-tight tracking-wide text-neutral-500">
+          {{ authService.nombreRol() ?? '···' }}
+        </span>
+      </span>
+    </button>
+
+    @if (menuAbierto()) {
+      <div class="card-base absolute right-0 z-50 mt-2 w-48 overflow-hidden py-1">
+        <button
+          type="button"
+          class="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-left text-sm text-text-principal transition-colors hover:bg-neutral-50"
+          (click)="cerrarSesion()"
+        >
+          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16 17l5-5-5-5" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 12H9" />
+          </svg>
+          Cerrar sesión
+        </button>
+      </div>
+    }
+  </div>
+</header>
