@@ -243,6 +243,14 @@ class DetalleConceptoSerializer(serializers.ModelSerializer):
     ver encargo Parte B6: "no debe filtrar márgenes" -- en este caso
     sencillamente no se incluyen los campos de costo en absoluto)."""
 
+    # `total_linea` es una columna GENERATED de PostgreSQL, y DRF la deduce
+    # como float en vez de como DecimalField: salía `60000.0` mientras el
+    # resto de importes salían como `"60000.00"`. Se declara explícitamente
+    # para que todo el dinero viaje igual, como cadena. Además de la
+    # coherencia, evita los artefactos de coma flotante de JavaScript al
+    # operar con importes.
+    total_linea = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+
     class Meta:
         model = DetalleVenta
         fields = ('id', 'tipo_item', 'descripcion', 'cantidad', 'precio_unitario', 'total_linea')

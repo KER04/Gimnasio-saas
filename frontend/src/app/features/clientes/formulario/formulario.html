@@ -1,0 +1,139 @@
+<div class="p-4 sm:p-6 max-w-2xl mx-auto flex flex-col gap-5">
+  <div>
+    <a routerLink="/clientes" class="text-sm text-neutral-500 hover:text-neutral-700">&larr; Volver a clientes</a>
+    <h1 class="font-display text-2xl font-bold text-text-principal mt-1">{{ titulo() }}</h1>
+  </div>
+
+  @if (cargandoFicha()) {
+    <div class="card-base p-8 flex items-center justify-center text-neutral-500 text-sm">
+      Cargando ficha…
+    </div>
+  } @else {
+    <form class="card-base p-5 sm:p-6 flex flex-col gap-4" [formGroup]="form" (ngSubmit)="enviar()" novalidate>
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div class="sm:col-span-2">
+          <label for="nombre" class="block text-sm font-medium text-text-principal mb-1">Nombre</label>
+          <input id="nombre" type="text" class="field-input" formControlName="nombre" autocomplete="name" />
+          @if (form.controls.nombre.invalid && form.controls.nombre.touched) {
+            <p class="mt-1 text-xs text-danger-text">El nombre es obligatorio.</p>
+          }
+          @if (errorDe('nombre'); as err) {
+            <p class="mt-1 text-xs text-danger-text">{{ err }}</p>
+          }
+        </div>
+
+        <div>
+          <label for="cedula" class="block text-sm font-medium text-text-principal mb-1">Cédula</label>
+          <input
+            id="cedula"
+            type="text"
+            inputmode="numeric"
+            class="field-input"
+            formControlName="cedula"
+          />
+          @if (form.controls.cedula.invalid && form.controls.cedula.touched) {
+            <p class="mt-1 text-xs text-danger-text">La cédula es obligatoria.</p>
+          }
+          @if (errorDe('cedula'); as err) {
+            <p class="mt-1 text-xs text-danger-text">{{ err }}</p>
+          }
+        </div>
+
+        <div>
+          <label for="telefono" class="block text-sm font-medium text-text-principal mb-1">Teléfono</label>
+          <input
+            id="telefono"
+            type="text"
+            inputmode="numeric"
+            class="field-input"
+            formControlName="telefono"
+          />
+          @if (form.controls.telefono.invalid && form.controls.telefono.touched) {
+            <p class="mt-1 text-xs text-danger-text">El teléfono es obligatorio.</p>
+          }
+          @if (errorDe('telefono'); as err) {
+            <p class="mt-1 text-xs text-danger-text">{{ err }}</p>
+          }
+        </div>
+
+        <div class="sm:col-span-2">
+          <label for="direccion" class="block text-sm font-medium text-text-principal mb-1">Dirección</label>
+          <input id="direccion" type="text" class="field-input" formControlName="direccion" />
+          @if (form.controls.direccion.invalid && form.controls.direccion.touched) {
+            <p class="mt-1 text-xs text-danger-text">La dirección es obligatoria.</p>
+          }
+          @if (errorDe('direccion'); as err) {
+            <p class="mt-1 text-xs text-danger-text">{{ err }}</p>
+          }
+        </div>
+
+        <div>
+          <label for="sexo" class="block text-sm font-medium text-text-principal mb-1">
+            Sexo <span class="text-neutral-400 font-normal">(opcional)</span>
+          </label>
+          <select id="sexo" class="field-input" formControlName="sexo">
+            <option value="">Sin especificar</option>
+            <option value="M">Masculino</option>
+            <option value="F">Femenino</option>
+            <option value="O">Otro</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="sede_origen" class="block text-sm font-medium text-text-principal mb-1">
+            Sede de origen <span class="text-neutral-400 font-normal">(opcional)</span>
+          </label>
+          <select id="sede_origen" class="field-input" formControlName="sede_origen">
+            <option value="">Determinar automáticamente</option>
+            @for (sede of sedes(); track sede.id) {
+              <option [value]="sede.id">{{ sede.nombre }}</option>
+            }
+          </select>
+          @if (errorDe('sede_origen'); as err) {
+            <p class="mt-1 text-xs text-danger-text">{{ err }}</p>
+          }
+        </div>
+      </div>
+
+      @if (!esEdicion) {
+        <div class="border-t border-surface-border pt-4 flex flex-col gap-3">
+          <p class="text-sm font-medium text-text-principal">Autorizaciones (Ley 1581 de 2012)</p>
+
+          <label class="flex items-start gap-2.5 text-sm text-text-principal">
+            <input type="checkbox" class="mt-0.5 size-4" formControlName="autoriza_tratamiento_datos" />
+            <span>
+              El cliente autoriza el tratamiento de sus datos personales.
+              <span class="block text-xs text-neutral-500">
+                Es una autorización legal que otorga el cliente, no una preferencia de esta aplicación.
+              </span>
+            </span>
+          </label>
+
+          <label class="flex items-start gap-2.5 text-sm text-text-principal">
+            <input type="checkbox" class="mt-0.5 size-4" formControlName="autoriza_biometria" />
+            <span>
+              El cliente autoriza además el uso de sus datos biométricos.
+              <span class="block text-xs text-neutral-500">
+                Es independiente de la autorización anterior: puede aceptar una y negar la otra.
+                Negarla no le impide ingresar al gimnasio.
+              </span>
+            </span>
+          </label>
+        </div>
+      }
+
+      @if (errorGeneral()) {
+        <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">
+          {{ errorGeneral() }}
+        </p>
+      }
+
+      <div class="flex items-center gap-3 pt-2">
+        <button type="submit" class="btn-primary" [disabled]="enviando()">
+          {{ enviando() ? 'Guardando…' : 'Guardar' }}
+        </button>
+        <a routerLink="/clientes" class="btn-outlined">Cancelar</a>
+      </div>
+    </form>
+  }
+</div>

@@ -1,0 +1,264 @@
+<div class="p-4 sm:p-6 flex flex-col gap-5">
+  <a routerLink="/clientes" class="text-sm text-neutral-500 hover:text-neutral-700 w-fit">&larr; Volver a clientes</a>
+
+  @if (cargandoCliente()) {
+    <div class="card-base p-8 flex items-center justify-center text-neutral-500 text-sm">
+      Cargando ficha…
+    </div>
+  } @else if (errorCliente()) {
+    <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">
+      {{ errorCliente() }}
+    </p>
+  } @else if (cliente(); as c) {
+    <!-- Cabecera -->
+    <div class="card-base p-5 sm:p-6 flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <h1 class="font-display text-2xl font-bold text-text-principal">{{ c.nombre }}</h1>
+          @if (c.activo) {
+            <span class="badge-success">Activo</span>
+          } @else {
+            <span class="badge-danger">Inactivo</span>
+          }
+        </div>
+        <p class="mt-1 text-sm font-mono text-neutral-500">{{ c.cedula }}</p>
+      </div>
+
+      @if (puedeGestionar()) {
+        <div class="flex items-center gap-2">
+          <a [routerLink]="['/clientes', c.id, 'editar']" class="btn-outlined">Editar</a>
+          <button type="button" class="btn-outlined text-danger-text" (click)="confirmarEliminar()">
+            Eliminar
+          </button>
+        </div>
+      }
+    </div>
+
+    @if (confirmandoEliminar()) {
+      <div class="card-base p-5 flex flex-col gap-3 border-danger-text/30">
+        <p class="text-sm text-text-principal">
+          ¿Eliminar a <strong>{{ c.nombre }}</strong>? Desaparecerá del listado de clientes,
+          pero su histórico de ventas y pagos se conserva.
+        </p>
+        @if (errorEliminar()) {
+          <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">
+            {{ errorEliminar() }}
+          </p>
+        }
+        <div class="flex items-center gap-2">
+          <button type="button" class="btn-primary bg-danger-text hover:bg-danger-text" [disabled]="eliminando()" (click)="eliminar()">
+            {{ eliminando() ? 'Eliminando…' : 'Sí, eliminar' }}
+          </button>
+          <button type="button" class="btn-outlined" (click)="cancelarEliminar()">Cancelar</button>
+        </div>
+      </div>
+    }
+
+    <!-- Pestañas -->
+    <div class="flex gap-1 border-b border-surface-border overflow-x-auto">
+      @for (tab of pestanas; track tab.id) {
+        <button
+          type="button"
+          class="px-3.5 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 -mb-px"
+          [class.border-primary-500]="tabActiva() === tab.id"
+          [class.text-primary-700]="tabActiva() === tab.id"
+          [class.border-transparent]="tabActiva() !== tab.id"
+          [class.text-neutral-500]="tabActiva() !== tab.id"
+          (click)="cambiarTab(tab.id)"
+        >
+          {{ tab.etiqueta }}
+        </button>
+      }
+    </div>
+
+    <!-- Datos -->
+    @if (tabActiva() === 'datos') {
+      <div class="card-base p-5 sm:p-6 grid sm:grid-cols-2 gap-4">
+        <div>
+          <p class="text-xs uppercase tracking-wide text-neutral-500">Teléfono</p>
+          <p class="text-sm text-text-principal mt-0.5">{{ c.telefono }}</p>
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-wide text-neutral-500">Dirección</p>
+          <p class="text-sm text-text-principal mt-0.5">{{ c.direccion }}</p>
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-wide text-neutral-500">Sexo</p>
+          <p class="text-sm text-text-principal mt-0.5">
+            @switch (c.sexo) {
+              @case ('M') { Masculino }
+              @case ('F') { Femenino }
+              @case ('O') { Otro }
+              @default { Sin especificar }
+            }
+          </p>
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-wide text-neutral-500">Fecha de registro</p>
+          <p class="text-sm text-text-principal mt-0.5">{{ c.fecha_registro }}</p>
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-wide text-neutral-500">Autorización de datos (Ley 1581)</p>
+          <p class="text-sm text-text-principal mt-0.5">
+            @if (c.autorizacion_tratamiento_datos === true) { Otorgada }
+            @else if (c.autorizacion_tratamiento_datos === false) { Negada }
+            @else { Sin registrar }
+          </p>
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-wide text-neutral-500">Autorización biométrica</p>
+          <p class="text-sm text-text-principal mt-0.5">
+            @if (c.autorizacion_biometria === true) { Otorgada }
+            @else if (c.autorizacion_biometria === false) { Negada }
+            @else { Sin registrar }
+          </p>
+        </div>
+      </div>
+    }
+
+    <!-- Membresías -->
+    @if (tabActiva() === 'membresias') {
+      @if (cargandoMembresias()) {
+        <div class="card-base p-8 flex items-center justify-center text-neutral-500 text-sm">Cargando membresías…</div>
+      } @else if (errorMembresias()) {
+        <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ errorMembresias() }}</p>
+      } @else if (membresias() && membresias()!.length === 0) {
+        <div class="card-base p-8 text-center text-sm text-neutral-500">Este cliente no tiene membresías registradas.</div>
+      } @else if (membresias()) {
+        <div class="flex flex-col gap-3">
+          @for (m of membresias()!; track m.id) {
+            <div class="card-base p-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p class="text-sm font-medium text-text-principal">Plan #{{ m.plan_id }}</p>
+                <p class="text-xs text-neutral-500 mt-0.5">{{ m.fecha_inicio }} → {{ m.fecha_fin }}</p>
+              </div>
+              <div class="flex items-center gap-3">
+                <span class="text-xs text-neutral-500">
+                  {{ m.dias_restantes >= 0 ? m.dias_restantes + ' días restantes' : 'vencida hace ' + (-m.dias_restantes) + ' días' }}
+                </span>
+                <span [class]="badgeMembresia(m.estado_calculado)">{{ etiquetaEstadoMembresia(m.estado_calculado) }}</span>
+              </div>
+            </div>
+          }
+        </div>
+      }
+    }
+
+    <!-- Deuda -->
+    @if (tabActiva() === 'deuda') {
+      @if (cargandoDeuda()) {
+        <div class="card-base p-8 flex items-center justify-center text-neutral-500 text-sm">Cargando deuda…</div>
+      } @else if (errorDeuda()) {
+        <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ errorDeuda() }}</p>
+      } @else if (deuda(); as d) {
+        <div class="card-base p-5 flex items-center justify-between">
+          <p class="text-sm text-neutral-500">Total adeudado</p>
+          <p class="text-xl font-display font-bold text-text-principal">{{ d.total_adeudado }}</p>
+        </div>
+
+        @if (d.ventas.length === 0) {
+          <div class="card-base p-8 text-center text-sm text-neutral-500">No hay saldos pendientes.</div>
+        } @else {
+          <div class="flex flex-col gap-4">
+            @for (venta of d.ventas; track venta.venta_id) {
+              <div class="card-base p-4">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <p class="text-sm font-medium text-text-principal">Venta #{{ venta.venta_id }} — {{ venta.fecha_hora }}</p>
+                  <p class="text-sm text-text-principal">
+                    Saldo: <span class="font-semibold">{{ venta.saldo }}</span> de {{ venta.total }}
+                  </p>
+                </div>
+                @if (venta.abonos.length > 0) {
+                  <table class="w-full text-sm mt-3">
+                    <thead>
+                      <tr class="text-left text-xs uppercase tracking-wide text-neutral-500">
+                        <th class="py-1.5 pr-2">Fecha</th>
+                        <th class="py-1.5 pr-2">Forma de pago</th>
+                        <th class="py-1.5 pr-2">Monto</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (abono of venta.abonos; track abono.id) {
+                        <tr class="border-t border-surface-border">
+                          <td class="py-1.5 pr-2 text-neutral-700">{{ abono.fecha_hora }}</td>
+                          <td class="py-1.5 pr-2 text-neutral-700">{{ abono.forma_pago }}</td>
+                          <td class="py-1.5 pr-2 text-neutral-700">{{ abono.monto }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                } @else {
+                  <p class="text-xs text-neutral-500 mt-2">Sin abonos todavía.</p>
+                }
+              </div>
+            }
+          </div>
+        }
+      }
+    }
+
+    <!-- Compras -->
+    @if (tabActiva() === 'compras') {
+      @if (cargandoCompras()) {
+        <div class="card-base p-8 flex items-center justify-center text-neutral-500 text-sm">Cargando compras…</div>
+      } @else if (errorCompras()) {
+        <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ errorCompras() }}</p>
+      } @else if (compras() && compras()!.length === 0) {
+        <div class="card-base p-8 text-center text-sm text-neutral-500">Este cliente no tiene compras registradas.</div>
+      } @else if (compras()) {
+        <div class="flex flex-col gap-3">
+          @for (venta of compras()!; track venta.id) {
+            <div class="card-base p-4 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p class="text-sm font-medium text-text-principal">
+                  Venta #{{ venta.consecutivo }}
+                  @if (venta.estado === 'anulada') {
+                    <span class="badge-danger ml-1.5">Anulada</span>
+                  }
+                </p>
+                <p class="text-xs text-neutral-500 mt-0.5">{{ venta.fecha_hora }}</p>
+              </div>
+              <p class="text-sm font-semibold text-text-principal">{{ venta.total }}</p>
+            </div>
+          }
+        </div>
+        <div class="flex items-center justify-between text-sm text-neutral-600">
+          <p>{{ comprasCount() }} {{ comprasCount() === 1 ? 'compra' : 'compras' }}</p>
+          <div class="flex items-center gap-2">
+            <button type="button" class="btn-outlined" [disabled]="!comprasPrevious()" (click)="comprasAnterior()">Anterior</button>
+            <span class="text-neutral-500">Página {{ comprasPagina() }}</span>
+            <button type="button" class="btn-outlined" [disabled]="!comprasNext()" (click)="comprasSiguiente()">Siguiente</button>
+          </div>
+        </div>
+      }
+    }
+
+    <!-- Asistencias -->
+    @if (tabActiva() === 'asistencias') {
+      @if (cargandoAsistencias()) {
+        <div class="card-base p-8 flex items-center justify-center text-neutral-500 text-sm">Cargando asistencias…</div>
+      } @else if (errorAsistencias()) {
+        <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ errorAsistencias() }}</p>
+      } @else if (asistencias() && asistencias()!.length === 0) {
+        <div class="card-base p-8 text-center text-sm text-neutral-500">Este cliente no tiene asistencias registradas.</div>
+      } @else if (asistencias()) {
+        <div class="flex flex-col gap-3">
+          @for (a of asistencias()!; track a.id) {
+            <div class="card-base p-4 flex flex-wrap items-center justify-between gap-2">
+              <p class="text-sm text-text-principal">{{ a.fecha_hora }}</p>
+              <p class="text-xs text-neutral-500">{{ a.con_membresia_vigente ? 'Con membresía vigente' : 'Sin membresía vigente' }}</p>
+            </div>
+          }
+        </div>
+        <div class="flex items-center justify-between text-sm text-neutral-600">
+          <p>{{ asistenciasCount() }} {{ asistenciasCount() === 1 ? 'asistencia' : 'asistencias' }}</p>
+          <div class="flex items-center gap-2">
+            <button type="button" class="btn-outlined" [disabled]="!asistenciasPrevious()" (click)="asistenciasAnterior()">Anterior</button>
+            <span class="text-neutral-500">Página {{ asistenciasPagina() }}</span>
+            <button type="button" class="btn-outlined" [disabled]="!asistenciasNext()" (click)="asistenciasSiguiente()">Siguiente</button>
+          </div>
+        </div>
+      }
+    }
+  }
+</div>

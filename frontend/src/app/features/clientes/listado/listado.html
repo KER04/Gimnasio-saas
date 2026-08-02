@@ -1,0 +1,140 @@
+<div class="p-4 sm:p-6 flex flex-col gap-5">
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h1 class="font-display text-2xl font-bold text-text-principal">Clientes</h1>
+      <p class="mt-1 text-sm text-neutral-500">Busca, revisa y da de alta a los clientes del gimnasio.</p>
+    </div>
+    @if (puedeGestionar()) {
+      <a routerLink="/clientes/nuevo" class="btn-primary">
+        Nuevo cliente
+      </a>
+    }
+  </div>
+
+  <!-- Buscador: siempre visible, disponible desde el primer momento (RF-03). -->
+  <div class="relative max-w-md">
+    <svg
+      class="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-neutral-400"
+      viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>
+    <input
+      type="search"
+      inputmode="search"
+      class="field-search"
+      placeholder="Buscar por nombre o cédula…"
+      [formControl]="busqueda"
+      aria-label="Buscar cliente por nombre o cédula"
+    />
+  </div>
+
+  @if (error()) {
+    <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">
+      {{ error() }}
+    </p>
+  }
+
+  @if (cargando()) {
+    <div class="card-base p-8 flex items-center justify-center text-neutral-500 text-sm">
+      Cargando clientes…
+    </div>
+  } @else if (clientes().length === 0) {
+    <div class="card-base p-8 flex flex-col items-center justify-center text-center gap-1">
+      @if (hayFiltro()) {
+        <p class="font-medium text-text-principal">Ningún cliente coincide con «{{ busqueda.value.trim() }}»</p>
+        <p class="text-sm text-neutral-500">Prueba con otro nombre o cédula.</p>
+      } @else {
+        <p class="font-medium text-text-principal">Aún no hay clientes registrados</p>
+        <p class="text-sm text-neutral-500">Da de alta el primero con el botón "Nuevo cliente".</p>
+      }
+    </div>
+  } @else {
+    <!-- Tabla: solo en escritorio (md+). A 360px se ve la lista de tarjetas de abajo. -->
+    <div class="hidden md:block card-base overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-surface-border text-left">
+            <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Cliente</th>
+            <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Cédula</th>
+            <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Teléfono</th>
+            <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (cliente of clientes(); track cliente.id) {
+            <tr
+              class="border-b border-surface-border last:border-0 cursor-pointer hover:bg-neutral-50"
+              (click)="irAFicha(cliente)"
+            >
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-3">
+                  <span
+                    class="flex items-center justify-center size-9 rounded-full bg-primary-100 text-primary-700 font-semibold text-xs shrink-0"
+                    aria-hidden="true"
+                  >
+                    {{ iniciales(cliente.nombre) }}
+                  </span>
+                  <span class="font-medium text-text-principal">{{ cliente.nombre }}</span>
+                </div>
+              </td>
+              <td class="px-4 py-3 font-mono text-neutral-700">{{ cliente.cedula }}</td>
+              <td class="px-4 py-3 text-neutral-700">{{ cliente.telefono }}</td>
+              <td class="px-4 py-3">
+                @if (cliente.activo) {
+                  <span class="badge-success">Activo</span>
+                } @else {
+                  <span class="badge-danger">Inactivo</span>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Tarjetas: por debajo de md, incluida la vista de 360px (RF-23, sin scroll horizontal). -->
+    <div class="md:hidden flex flex-col gap-3">
+      @for (cliente of clientes(); track cliente.id) {
+        <button
+          type="button"
+          class="card-base p-4 text-left flex items-center gap-3 w-full"
+          (click)="irAFicha(cliente)"
+        >
+          <span
+            class="flex items-center justify-center size-10 rounded-full bg-primary-100 text-primary-700 font-semibold text-sm shrink-0"
+            aria-hidden="true"
+          >
+            {{ iniciales(cliente.nombre) }}
+          </span>
+          <div class="flex-1 min-w-0">
+            <p class="font-medium text-text-principal truncate">{{ cliente.nombre }}</p>
+            <p class="text-xs font-mono text-neutral-500">{{ cliente.cedula }}</p>
+            <p class="text-xs text-neutral-500">{{ cliente.telefono }}</p>
+          </div>
+          @if (cliente.activo) {
+            <span class="badge-success shrink-0">Activo</span>
+          } @else {
+            <span class="badge-danger shrink-0">Inactivo</span>
+          }
+        </button>
+      }
+    </div>
+
+    <!-- Paginación -->
+    <div class="flex items-center justify-between text-sm text-neutral-600">
+      <p>{{ count() }} {{ count() === 1 ? 'cliente' : 'clientes' }}</p>
+      <div class="flex items-center gap-2">
+        <button type="button" class="btn-outlined" [disabled]="!previous()" (click)="paginaAnterior()">
+          Anterior
+        </button>
+        <span class="text-neutral-500">Página {{ pagina() }}</span>
+        <button type="button" class="btn-outlined" [disabled]="!next()" (click)="paginaSiguiente()">
+          Siguiente
+        </button>
+      </div>
+    </div>
+  }
+</div>

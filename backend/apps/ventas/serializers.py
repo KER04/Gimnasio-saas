@@ -94,6 +94,13 @@ class PagoSerializer(serializers.ModelSerializer):
 
 
 class DetalleVentaSerializer(serializers.ModelSerializer):
+    # `total_linea` es una columna GENERATED de PostgreSQL, y DRF la deduce
+    # como float en vez de como DecimalField: salía `60000.0` mientras el
+    # resto de importes salían como `"60000.00"`. Se declara explícitamente
+    # para que todo el dinero viaje igual, como cadena. Además de la
+    # coherencia, evita los artefactos de coma flotante de JavaScript.
+    total_linea = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+
     class Meta:
         model = DetalleVenta
         fields = (
