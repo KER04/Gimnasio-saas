@@ -107,7 +107,11 @@ export class ClientesFormulario {
       telefono: valores.telefono.trim(),
       direccion: valores.direccion.trim(),
       sexo: valores.sexo || null,
-      sede_origen: valores.sede_origen === '' ? null : valores.sede_origen,
+      // La sede es opcional: si no se elige, se OMITE del cuerpo en vez de
+      // mandarla en `null`. El backend deduce entonces la sede del usuario.
+      // (También acepta `null`, pero omitirla expresa mejor "no la indico" y
+      // deja el cuerpo más limpio.)
+      ...(valores.sede_origen === '' ? {} : { sede_origen: valores.sede_origen }),
       ...(this.esEdicion
         ? {}
         : {

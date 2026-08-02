@@ -125,7 +125,16 @@ class ClienteSerializer(serializers.ModelSerializer):
             'cedula': {'required': True},
             'telefono': {'required': True},
             'direccion': {'required': True},
-            'sede_origen': {'required': False},
+            # `allow_null` además de `required=False`: no es lo mismo omitir el
+            # campo que enviarlo en `null`, y un cliente que representa "sin
+            # elegir" con `null` —lo natural en un selector vacío de un
+            # formulario— recibía un 400 aunque el campo fuese opcional.
+            #
+            # `create()` ya sabe deducir la sede cuando no llega ninguna (la
+            # única del usuario, ver `_resolver_sede_origen`), pero DRF
+            # rechazaba el valor en la validación del campo antes de llegar
+            # ahí. Ambas formas significan lo mismo y ambas se aceptan.
+            'sede_origen': {'required': False, 'allow_null': True},
         }
 
     def get_autorizacion_tratamiento_datos(self, obj):

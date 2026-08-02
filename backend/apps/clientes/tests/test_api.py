@@ -89,6 +89,36 @@ class ClienteCrudTestCase(TestCase):
         self.assertIsNone(cuerpo['autorizacion_tratamiento_datos'])
         self.assertIsNone(cuerpo['autorizacion_biometria'])
 
+    def test_crear_con_sede_origen_en_null_tambien_da_201(self):
+        """Regresión de un fallo detectado usando la aplicación.
+
+        Un selector vacío en un formulario representa "sin elegir" como
+        `null`, no omitiendo la clave. El campo era opcional pero no admitía
+        nulos, así que el alta de clientes fallaba con 400 en cuanto no se
+        escogía sede:
+
+            {"sede_origen": ["Este campo no puede ser nulo."]}
+
+        Omitir el campo y enviarlo en `null` significan lo mismo —"no la
+        indico"— y ambas formas deben resolver la sede del usuario.
+        """
+        datos = self.datos_a
+        respuesta = self.client.post(
+            '/api/clientes/',
+            data={
+                'nombre': 'Cliente Sin Sede',
+                'cedula': 'NULA-0001',
+                'telefono': '3009998877',
+                'direccion': 'Cra 1 # 2-3',
+                'sexo': None,
+                'sede_origen': None,
+            },
+            content_type='application/json',
+            **_auth_headers(datos['usuario_admin'], 'cli-crud-a'),
+        )
+        self.assertEqual(respuesta.status_code, 201, respuesta.content)
+        self.assertEqual(respuesta.json()['sede_origen'], datos['sede'].id)
+
     def test_falta_un_obligatorio_da_400_con_mensaje_claro(self):
         """Escenario 2: falta 'direccion'."""
         datos = self.datos_a
