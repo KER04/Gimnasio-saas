@@ -1,0 +1,323 @@
+/* You can add global styles to this file, and also import other style files */
+@import "tailwindcss";
+
+/* =========================================================================
+ * SISTEMA DE DISEÑO
+ * =========================================================================
+ * Tokens de la paleta de referencia del producto. Tailwind v4 los toma
+ * directamente de aquí (no hay tailwind.config.js): cualquier `bg-primary-500`,
+ * `text-neutral-700`, `font-display`, etc. sale de este bloque `@theme`.
+ *
+ * Las escalas de tinte se generan con `color-mix()` a partir del tono base
+ * (500), mezclando con blanco hacia los claros y con negro hacia los oscuros.
+ * Así no hay que inventar a mano diez hexadecimales por color y la relación
+ * entre pasos es consistente.
+ * ========================================================================= */
+@theme {
+  /* ---- Tipografías ---- */
+  --font-display: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  /* ---- Primary (morado, acciones principales) ---- */
+  --color-primary-50: color-mix(in oklch, #8869bf 5%, white);
+  --color-primary-100: color-mix(in oklch, #8869bf 15%, white);
+  --color-primary-200: color-mix(in oklch, #8869bf 30%, white);
+  --color-primary-300: color-mix(in oklch, #8869bf 50%, white);
+  --color-primary-400: color-mix(in oklch, #8869bf 75%, white);
+  --color-primary-500: #8869bf;
+  --color-primary-600: color-mix(in oklch, #8869bf 88%, black);
+  --color-primary-700: color-mix(in oklch, #8869bf 72%, black);
+  --color-primary-800: color-mix(in oklch, #8869bf 58%, black);
+  --color-primary-900: color-mix(in oklch, #8869bf 45%, black);
+  --color-primary-950: color-mix(in oklch, #8869bf 30%, black);
+
+  /* ---- Secondary (morado grisáceo, apoyo) ---- */
+  --color-secondary-50: color-mix(in oklch, #7c7296 5%, white);
+  --color-secondary-100: color-mix(in oklch, #7c7296 15%, white);
+  --color-secondary-200: color-mix(in oklch, #7c7296 30%, white);
+  --color-secondary-300: color-mix(in oklch, #7c7296 50%, white);
+  --color-secondary-400: color-mix(in oklch, #7c7296 75%, white);
+  --color-secondary-500: #7c7296;
+  --color-secondary-600: color-mix(in oklch, #7c7296 88%, black);
+  --color-secondary-700: color-mix(in oklch, #7c7296 72%, black);
+  --color-secondary-800: color-mix(in oklch, #7c7296 58%, black);
+  --color-secondary-900: color-mix(in oklch, #7c7296 45%, black);
+  --color-secondary-950: color-mix(in oklch, #7c7296 30%, black);
+
+  /* ---- Tertiary (dorado, acentos y destacados) ---- */
+  --color-tertiary-50: color-mix(in oklch, #c9a74d 5%, white);
+  --color-tertiary-100: color-mix(in oklch, #c9a74d 15%, white);
+  --color-tertiary-200: color-mix(in oklch, #c9a74d 30%, white);
+  --color-tertiary-300: color-mix(in oklch, #c9a74d 50%, white);
+  --color-tertiary-400: color-mix(in oklch, #c9a74d 75%, white);
+  --color-tertiary-500: #c9a74d;
+  --color-tertiary-600: color-mix(in oklch, #c9a74d 88%, black);
+  --color-tertiary-700: color-mix(in oklch, #c9a74d 72%, black);
+  --color-tertiary-800: color-mix(in oklch, #c9a74d 58%, black);
+  --color-tertiary-900: color-mix(in oklch, #c9a74d 45%, black);
+  --color-tertiary-950: color-mix(in oklch, #c9a74d 30%, black);
+
+  /* ---- Neutral (grises de texto y bordes) ---- */
+  --color-neutral-50: color-mix(in oklch, #79767d 5%, white);
+  --color-neutral-100: color-mix(in oklch, #79767d 12%, white);
+  --color-neutral-200: color-mix(in oklch, #79767d 25%, white);
+  --color-neutral-300: color-mix(in oklch, #79767d 42%, white);
+  --color-neutral-400: color-mix(in oklch, #79767d 65%, white);
+  --color-neutral-500: #79767d;
+  --color-neutral-600: color-mix(in oklch, #79767d 85%, black);
+  --color-neutral-700: color-mix(in oklch, #79767d 68%, black);
+  --color-neutral-800: color-mix(in oklch, #79767d 50%, black);
+  --color-neutral-900: color-mix(in oklch, #79767d 32%, black);
+  --color-neutral-950: color-mix(in oklch, #79767d 18%, black);
+
+  /* ---- Superficies y texto ---- */
+  --color-surface-page: #f4f3f7;
+  --color-surface-card: #ffffff;
+  --color-surface-border: #e7e5ec;
+  --color-text-principal: #1a1a1f;
+
+  /* ---- Estados (badges tipo ACTIVO / PAUSADO del mockup) ---- */
+  --color-success-bg: #e3f5e9;
+  --color-success-text: #1e7a45;
+  --color-warning-bg: #fbf0dc;
+  --color-warning-text: #96660f;
+  --color-danger-bg: #fbe6e6;
+  --color-danger-text: #a32727;
+
+  /* ---- Radios ---- */
+  --radius-card: 16px;
+  --radius-field: 10px;
+
+  /* ---- Sombras sutiles ---- */
+  --shadow-card: 0 1px 2px rgba(26, 26, 31, 0.04), 0 4px 16px rgba(26, 26, 31, 0.06);
+  --shadow-card-hover: 0 2px 4px rgba(26, 26, 31, 0.05), 0 8px 24px rgba(26, 26, 31, 0.08);
+}
+
+body {
+  background-color: var(--color-surface-page);
+  color: var(--color-text-principal);
+  font-family: var(--font-sans);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+}
+
+/* =========================================================================
+ * COMPONENTES BASE
+ * =========================================================================
+ * RF-23: áreas táctiles >= 44x44px, nada dependiente de :hover para
+ * funcionar (el hover aquí es solo refuerzo visual, nunca la única forma de
+ * activar algo), y que se vea bien a 360px de ancho (por eso los campos son
+ * `width: 100%` y no hay anchos fijos grandes).
+ * ========================================================================= */
+@utility btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding-inline: 1.25rem;
+  border-radius: var(--radius-field);
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  line-height: 1;
+  transition: background-color 0.15s ease;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  background-color: var(--color-primary-500);
+  color: white;
+
+  &:hover {
+    background-color: var(--color-primary-600);
+  }
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+@utility btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding-inline: 1.25rem;
+  border-radius: var(--radius-field);
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  line-height: 1;
+  transition: background-color 0.15s ease;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  background-color: var(--color-secondary-100);
+  color: var(--color-secondary-800);
+
+  &:hover {
+    background-color: var(--color-secondary-200);
+  }
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+@utility btn-inverted {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding-inline: 1.25rem;
+  border-radius: var(--radius-field);
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  line-height: 1;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  background-color: white;
+  color: var(--color-primary-600);
+
+  &:hover {
+    background-color: var(--color-primary-50);
+  }
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+@utility btn-outlined {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding-inline: 1.25rem;
+  border-radius: var(--radius-field);
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  line-height: 1;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  cursor: pointer;
+  background-color: transparent;
+  border: 1.5px solid var(--color-neutral-300);
+  color: var(--color-text-principal);
+
+  &:hover {
+    background-color: var(--color-neutral-50);
+    border-color: var(--color-neutral-400);
+  }
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+@utility btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: var(--radius-field);
+  background-color: transparent;
+  border: 1.5px solid var(--color-neutral-200);
+  color: var(--color-neutral-700);
+  transition: background-color 0.15s ease;
+  cursor: pointer;
+
+  &:hover {
+    background-color: var(--color-neutral-50);
+  }
+}
+
+@utility field-input {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding-inline: 0.875rem;
+  border-radius: var(--radius-field);
+  border: 1.5px solid var(--color-surface-border);
+  background-color: white;
+  color: var(--color-text-principal);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary-400);
+    box-shadow: 0 0 0 3px var(--color-primary-100);
+  }
+}
+
+@utility field-search {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding-inline: 2.75rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-surface-border);
+  background-color: white;
+  color: var(--color-text-principal);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary-400);
+    box-shadow: 0 0 0 3px var(--color-primary-100);
+  }
+}
+
+@utility card-base {
+  background-color: var(--color-surface-card);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-surface-border);
+  box-shadow: var(--shadow-card);
+}
+
+@utility badge-success {
+  display: inline-flex;
+  align-items: center;
+  padding-inline: 0.625rem;
+  padding-block: 0.25rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background-color: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+
+@utility badge-warning {
+  display: inline-flex;
+  align-items: center;
+  padding-inline: 0.625rem;
+  padding-block: 0.25rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background-color: var(--color-warning-bg);
+  color: var(--color-warning-text);
+}
+
+@utility badge-danger {
+  display: inline-flex;
+  align-items: center;
+  padding-inline: 0.625rem;
+  padding-block: 0.25rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background-color: var(--color-danger-bg);
+  color: var(--color-danger-text);
+}

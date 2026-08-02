@@ -1,8 +1,6 @@
 import { Routes } from '@angular/router';
 
 import { authGuard } from './core/guards/auth.guard';
-import { permisoGuard } from './core/guards/permiso.guard';
-import { Shell } from './layout/shell/shell';
 
 export const routes: Routes = [
   {
@@ -11,21 +9,17 @@ export const routes: Routes = [
   },
   {
     path: '',
-    component: Shell,
+    loadComponent: () =>
+      import('./layout/layout-principal/layout-principal').then((m) => m.LayoutPrincipal),
     canActivate: [authGuard],
     children: [
       {
-        path: 'pos',
-        canActivate: [permisoGuard('ventas.registrar')],
-        loadComponent: () => import('./features/pos/pos').then((m) => m.Pos),
-      },
-      {
-        path: 'sin-acceso',
+        path: 'dashboard',
         loadComponent: () =>
-          import('./features/sin-acceso/sin-acceso').then((m) => m.SinAcceso),
+          import('./features/dashboard/dashboard').then((m) => m.Dashboard),
       },
-      { path: '', pathMatch: 'full', redirectTo: 'pos' },
+      { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
     ],
   },
-  { path: '**', redirectTo: '' },
+  { path: '**', redirectTo: 'login' },
 ];

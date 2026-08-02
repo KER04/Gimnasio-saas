@@ -1,99 +1,93 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, signal } from '@angular/core';
-import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 
 import { AuthService } from '../../../core/services/auth.service';
-import { subdominioDesdeHostname } from '../../../core/tenant/subdominio.util';
+import { TenantService } from '../../../core/tenant/tenant.service';
 
 /**
- * Pantalla de login (Parte A3). El campo "código de gimnasio" (subdominio)
- * solo se muestra si NO se pudo deducir del hostname actual (p. ej. entrando
- * por `localhost` a secas): si `subdominioDesdeHostname()` ya resolvió uno,
- * `AuthService.login` lo añade solo y no hace falta pedírselo al usuario.
+ * Pantalla de login. Fuera del layout principal a propósito (ver
+ * `app.routes.ts`): no lleva header/aside/footer.
+ *
+ * El campo "código de gimnasio" solo aparece cuando el subdominio no se pudo
+ * deducir de la URL (p. ej. entrando por `localhost` en desarrollo). Si ya
+ * se dedujo, preguntarlo sería pedir algo que ya sabemos.
  */
 @Component({
   selector: 'app-login',
-  standalone: true,
   imports: [ReactiveFormsModule],
   templateUrl: './login.html',
-  styleUrl: './login.scss',
+  styleUrl: './login.css',
 })
 export class Login {
   private readonly fb = inject(FormBuilder);
   private readonly authService = inject(AuthService);
+  protected readonly tenantService = inject(TenantService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
-  /** Si es `null`, el hostname actual no trae subdominio de tenant y hay que pedirlo a mano. */
-  protected readonly subdominioDeducido = subdominioDesdeHostname(window.location.hostname);
-  protected readonly requiereCodigoGimnasio = this.subdominioDeducido === null;
+  /** `true` cuando hay que pedir el código de gimnasio a mano. */
+  protected readonly requiereCodigoGimnasio = computed(() => !this.tenantService.seDeduceDeLaUrl());
 
   protected readonly enviando = signal(false);
   protected readonly errorBackend = signal<string | null>(null);
 
   protected readonly form = this.fb.nonNullable.group({
-    // Obligatorio SOLO cuando el campo se muestra. Si el subdominio se dedujo
-    // del hostname, el campo ni siquiera aparece y exigirlo dejaría el
-    // formulario permanentemente inválido.
-    subdominio: ['', this.requiereCodigoGimnasio ? [Validators.required] : []],
-    correo: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.required]],
+    codigoGimnasio: this.fb.nonNullable.control(''),
+    correo: this.fb.nonNullable.control('', [Validators.required, Validators.email]),
+    password: this.fb.nonNullable.control('', [Validators.required]),
   });
 
-  protected readonly puedeEnviar = computed(() => !this.enviando());
+  constructor() {
+    // El código de gimnasio solo es obligatorio cuando se muestra. Se fija
+    // aquí (no en el binding del template) para que Angular valide el
+    // formulario completo con la regla correcta antes de enviar.
+    if (this.requiereCodigoGimnasio()) {
+      this.form.controls.codigoGimnasio.addValidators(Validators.required);
+      this.form.controls.codigoGimnasio.updateValueAndValidity();
+    }
+  }
 
-  onSubmit(): void {
-    if (this.form.invalid || this.enviando()) {
-      this.form.markAllAsTouched();
+  protected enviar(): void {
+    if (this.enviando()) {
+      return;
+    }
+
+    this.form.markAllAsTouched();
+    if (this.form.invalid) {
       return;
     }
 
     this.errorBackend.set(null);
     this.enviando.set(true);
 
-    const { subdominio, correo, password } = this.form.getRawValue();
+    const { codigoGimnasio, correo, password } = this.form.getRawValue();
+    const subdominio = this.requiereCodigoGimnasio() ? codigoGimnasio.trim() : undefined;
 
-    this.authService
-      .login({
-        correo,
-        password,
-        ...(this.requiereCodigoGimnasio && subdominio ? { subdominio } : {}),
-      })
-      .subscribe({
-        next: () => {
-          this.enviando.set(false);
-          const destino = this.route.snapshot.queryParamMap.get('redirect');
-          this.router.navigateByUrl(destino || '/pos');
-        },
-        error: (error: unknown) => {
-          this.enviando.set(false);
-          this.errorBackend.set(this.extraerMensaje(error));
-        },
-      });
+    this.authService.login({ subdominio, correo, password }).subscribe({
+      next: () => {
+        if (subdominio) {
+          this.tenantService.establecer(subdominio);
+        }
+        this.enviando.set(false);
+        const destino = this.route.snapshot.queryParamMap.get('redirigirA') ?? '/dashboard';
+        this.router.navigateByUrl(destino);
+      },
+      error: (error: unknown) => {
+        this.enviando.set(false);
+        this.errorBackend.set(this.mensajeDeError(error));
+      },
+    });
   }
 
-  /** El backend ya devuelve mensajes en español listos para mostrar (ver
-   * encargo): se muestran tal cual, sin traducirlos ni envolverlos en
-   * "Error 400". */
-  private extraerMensaje(error: unknown): string {
+  private mensajeDeError(error: unknown): string {
     if (error instanceof HttpErrorResponse) {
-      const cuerpo = error.error;
-      if (cuerpo && typeof cuerpo === 'object') {
-        if (typeof cuerpo.detail === 'string') {
-          return cuerpo.detail;
-        }
-        const primerCampo = Object.values(cuerpo).find(
-          (valor): valor is string[] => Array.isArray(valor) && valor.length > 0,
-        );
-        if (primerCampo) {
-          return primerCampo[0];
-        }
-      }
-      if (error.status === 0) {
-        return 'No se pudo conectar con el servidor. Verifica tu conexión.';
+      const detalle = (error.error as { detail?: string } | null)?.detail;
+      if (detalle) {
+        return detalle;
       }
     }
-    return 'Ocurrió un error inesperado. Inténtalo de nuevo.';
+    return 'No se pudo iniciar sesión. Inténtalo de nuevo.';
   }
 }

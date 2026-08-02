@@ -1,65 +1,75 @@
-<div class="pagina-login">
-  <form class="tarjeta-login" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
-    <h1 class="titulo">Iniciar sesión</h1>
-    <p class="subtitulo">Panel del gimnasio</p>
+<div class="min-h-screen w-full flex items-center justify-center bg-surface-page px-4 py-10">
+  <div class="w-full max-w-sm card-base p-6 sm:p-8">
+    <h1 class="font-display text-2xl font-bold text-text-principal text-center">
+      Iniciar sesión
+    </h1>
+    <p class="mt-1 text-sm text-neutral-500 text-center">
+      Entra con tus credenciales del gimnasio
+    </p>
 
-    @if (requiereCodigoGimnasio) {
-      <label class="campo">
-        <span class="etiqueta">Código de gimnasio</span>
-        <input
-          type="text"
-          formControlName="subdominio"
-          autocomplete="organization"
-          placeholder="ej. gimx"
-          class="entrada"
-          [class.entrada-error]="
-            form.controls.subdominio.invalid && form.controls.subdominio.touched
-          "
-        />
-        @if (form.controls.subdominio.invalid && form.controls.subdominio.touched) {
-          <span class="mensaje-campo">Indica el código de tu gimnasio.</span>
-        } @else {
-          <span class="ayuda-campo">
+    <form class="mt-6 flex flex-col gap-4" [formGroup]="form" (ngSubmit)="enviar()" novalidate>
+      @if (requiereCodigoGimnasio()) {
+        <div>
+          <label for="codigoGimnasio" class="block text-sm font-medium text-text-principal mb-1">
+            Código de gimnasio
+          </label>
+          <input
+            id="codigoGimnasio"
+            type="text"
+            class="field-input"
+            autocomplete="organization"
+            formControlName="codigoGimnasio"
+          />
+          <p class="mt-1 text-xs text-neutral-500">
             El identificador de tu gimnasio, el mismo que aparece en su dirección web.
-          </span>
+          </p>
+          @if (form.controls.codigoGimnasio.invalid && form.controls.codigoGimnasio.touched) {
+            <p class="mt-1 text-xs text-danger-text">El código de gimnasio es obligatorio.</p>
+          }
+        </div>
+      }
+
+      <div>
+        <label for="correo" class="block text-sm font-medium text-text-principal mb-1">
+          Correo
+        </label>
+        <input
+          id="correo"
+          type="email"
+          class="field-input"
+          autocomplete="username"
+          formControlName="correo"
+        />
+        @if (form.controls.correo.invalid && form.controls.correo.touched) {
+          <p class="mt-1 text-xs text-danger-text">Introduce un correo válido.</p>
         }
-      </label>
-    }
+      </div>
 
-    <label class="campo">
-      <span class="etiqueta">Correo</span>
-      <input
-        type="email"
-        formControlName="correo"
-        autocomplete="username"
-        class="entrada"
-        [class.entrada-error]="form.controls.correo.invalid && form.controls.correo.touched"
-      />
-      @if (form.controls.correo.invalid && form.controls.correo.touched) {
-        <span class="mensaje-campo">Ingresa un correo válido.</span>
+      <div>
+        <label for="password" class="block text-sm font-medium text-text-principal mb-1">
+          Contraseña
+        </label>
+        <input
+          id="password"
+          type="password"
+          class="field-input"
+          autocomplete="current-password"
+          formControlName="password"
+        />
+        @if (form.controls.password.invalid && form.controls.password.touched) {
+          <p class="mt-1 text-xs text-danger-text">La contraseña es obligatoria.</p>
+        }
+      </div>
+
+      @if (errorBackend()) {
+        <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">
+          {{ errorBackend() }}
+        </p>
       }
-    </label>
 
-    <label class="campo">
-      <span class="etiqueta">Contraseña</span>
-      <input
-        type="password"
-        formControlName="password"
-        autocomplete="current-password"
-        class="entrada"
-        [class.entrada-error]="form.controls.password.invalid && form.controls.password.touched"
-      />
-      @if (form.controls.password.invalid && form.controls.password.touched) {
-        <span class="mensaje-campo">La contraseña es obligatoria.</span>
-      }
-    </label>
-
-    @if (errorBackend()) {
-      <p class="error-backend" role="alert">{{ errorBackend() }}</p>
-    }
-
-    <button type="submit" class="boton-entrar" [disabled]="!puedeEnviar()">
-      {{ enviando() ? 'Entrando…' : 'Entrar' }}
-    </button>
-  </form>
+      <button type="submit" class="btn-primary w-full mt-2" [disabled]="enviando()">
+        {{ enviando() ? 'Entrando…' : 'Entrar' }}
+      </button>
+    </form>
+  </div>
 </div>
