@@ -55,6 +55,23 @@ export class Aside {
 
   protected readonly puedeCrearCliente = computed(() => this.authService.tienePermiso('clientes.gestionar'));
 
+  /**
+   * Clases de la navegación, en dos juegos EXCLUYENTES.
+   *
+   * No se suman a un juego base: si el estilo de hover del elemento normal
+   * siguiera aplicándose al seleccionado, le pondría fondo casi blanco
+   * manteniendo el texto blanco y la opción activa quedaría ilegible al pasar
+   * el ratón. Cada estado trae su propio hover, y solo uno se aplica.
+   */
+  private static readonly BASE =
+    'flex min-h-11 items-center gap-3 rounded-field px-3 py-2 transition-colors';
+
+  protected readonly CLASES_NAV_ACTIVO =
+    `${Aside.BASE} bg-primary-500 text-white hover:bg-primary-600`;
+
+  protected readonly CLASES_NAV_INACTIVO =
+    `${Aside.BASE} text-text-principal hover:bg-neutral-50`;
+
   protected irANuevoCliente(): void {
     this.layoutService.cerrar();
     this.router.navigate(['/clientes/nuevo']);

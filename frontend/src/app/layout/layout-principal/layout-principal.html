@@ -1,13 +1,19 @@
 <div class="flex min-h-screen flex-col bg-surface-page">
   <app-header />
 
-  <div class="flex flex-1 items-start">
+  <!-- `items-stretch` (por defecto en flex) hace que el aside se estire hasta
+       el fondo del contenedor en vez de terminar donde acaba su contenido. -->
+  <div class="flex flex-1">
     <app-aside />
 
-    <section class="min-w-0 flex-1 p-4 md:p-8">
-      <router-outlet />
-    </section>
-  </div>
+    <!-- El pie va DENTRO de esta columna, no debajo de todo: si abarcara
+         también el ancho del aside, lo cortaría antes de llegar al fondo. -->
+    <div class="flex min-w-0 flex-1 flex-col">
+      <section class="flex-1 p-4 md:p-8">
+        <router-outlet />
+      </section>
 
-  <app-footer />
+      <app-footer />
+    </div>
+  </div>
 </div>

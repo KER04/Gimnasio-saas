@@ -40,10 +40,19 @@
   <nav class="flex flex-1 flex-col gap-1 text-sm font-medium">
     @for (item of itemsVisibles(); track item.id) {
       @if (item.disponible) {
+        <!-- Las clases de activo e inactivo se aplican de forma excluyente, no
+             sumando `routerLinkActive` sobre las de base. Sumándolas, el
+             `hover:bg-neutral-50` del estado normal seguía activo sobre el
+             elemento seleccionado y le ponía fondo casi blanco manteniendo el
+             texto blanco: al pasar el ratón por encima, la opción marcada se
+             volvía ilegible. Y no se arregla añadiendo otro `hover:`, porque
+             ambas utilidades tienen la misma especificidad y gana la que
+             Tailwind emita después, que no está bajo nuestro control. -->
         <a
           [routerLink]="item.ruta"
-          routerLinkActive="bg-primary-500 text-white"
-          class="flex min-h-11 items-center gap-3 rounded-field px-3 py-2 text-text-principal transition-colors hover:bg-neutral-50"
+          routerLinkActive
+          #enlaceActivo="routerLinkActive"
+          [class]="enlaceActivo.isActive ? CLASES_NAV_ACTIVO : CLASES_NAV_INACTIVO"
           (click)="alNavegar()"
         >
           <ng-container [ngTemplateOutlet]="icono" [ngTemplateOutletContext]="{ id: item.id }" />
