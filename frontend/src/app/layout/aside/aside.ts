@@ -64,13 +64,13 @@ export class Aside {
    * el ratón. Cada estado trae su propio hover, y solo uno se aplica.
    */
   private static readonly BASE =
-    'flex min-h-11 items-center gap-3 rounded-field px-3 py-2 transition-colors';
+    'flex min-h-11 items-center gap-3 rounded-lg border-l-4 px-3 py-2 transition-colors';
 
   protected readonly CLASES_NAV_ACTIVO =
-    `${Aside.BASE} bg-primary-500 text-white hover:bg-primary-600`;
+    `${Aside.BASE} border-primary bg-primary-container/40 text-on-surface font-semibold`;
 
   protected readonly CLASES_NAV_INACTIVO =
-    `${Aside.BASE} text-text-principal hover:bg-neutral-50`;
+    `${Aside.BASE} border-transparent text-on-surface-variant hover:bg-surface-container-low`;
 
   protected irANuevoCliente(): void {
     this.layoutService.cerrar();

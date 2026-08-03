@@ -10,6 +10,7 @@ import {
   ClienteResumen,
   CompraCliente,
   DeudaCliente,
+  EstadoFiltroCliente,
   MembresiaResumen,
 } from '../models/cliente.model';
 import { RespuestaPaginada } from '../models/paginacion.model';
@@ -24,14 +25,27 @@ export class ClientesService {
   private readonly http = inject(HttpClient);
   private readonly base = `${environment.apiUrl}/clientes`;
 
-  /** Busca por nombre o cédula en el mismo campo (`buscar`), paginado. */
-  listar(buscar?: string, page?: number): Observable<RespuestaPaginada<ClienteResumen>> {
+  /** Busca por nombre o cédula en el mismo campo (`buscar`), paginado, con
+   * filtros opcionales por estado de membresía (`estado`) y por plan
+   * (`plan`, el id del plan de la membresía vigente). */
+  listar(
+    buscar?: string,
+    page?: number,
+    estado?: EstadoFiltroCliente,
+    plan?: number,
+  ): Observable<RespuestaPaginada<ClienteResumen>> {
     let params = new HttpParams();
     if (buscar) {
       params = params.set('buscar', buscar);
     }
     if (page) {
       params = params.set('page', page);
+    }
+    if (estado) {
+      params = params.set('estado', estado);
+    }
+    if (plan) {
+      params = params.set('plan', plan);
     }
     return this.http.get<RespuestaPaginada<ClienteResumen>>(`${this.base}/`, { params });
   }

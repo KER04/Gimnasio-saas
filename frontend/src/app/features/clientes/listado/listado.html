@@ -1,34 +1,46 @@
 <div class="p-4 sm:p-6 flex flex-col gap-5">
   <div class="flex flex-wrap items-start justify-between gap-3">
     <div>
-      <h1 class="font-display text-2xl font-bold text-text-principal">Clientes</h1>
-      <p class="mt-1 text-sm text-neutral-500">Busca, revisa y da de alta a los clientes del gimnasio.</p>
+      <h1 class="text-headline-lg-mobile sm:text-headline-lg text-on-surface">Gestión de clientes</h1>
+      <p class="mt-1 text-body-md text-on-surface-variant">Busca, revisa y da de alta a los clientes del gimnasio.</p>
     </div>
     @if (puedeGestionar()) {
       <a routerLink="/clientes/nuevo" class="btn-primary">
+        <span class="material-symbols-outlined" aria-hidden="true">add</span>
         Nuevo cliente
       </a>
     }
   </div>
 
-  <!-- Buscador: siempre visible, disponible desde el primer momento (RF-03). -->
-  <div class="relative max-w-md">
-    <svg
-      class="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-neutral-400"
-      viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-      aria-hidden="true"
-    >
-      <circle cx="11" cy="11" r="7" />
-      <path d="m21 21-4.3-4.3" />
-    </svg>
-    <input
-      type="search"
-      inputmode="search"
-      class="field-search"
-      placeholder="Buscar por nombre o cédula…"
-      [formControl]="busqueda"
-      aria-label="Buscar cliente por nombre o cédula"
-    />
+  <!-- Filtros: buscador SIEMPRE visible (RF-03), más estado de membresía y plan. -->
+  <div class="card-base p-4 flex flex-col sm:flex-row gap-3">
+    <div class="relative flex-1">
+      <span
+        class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant"
+        aria-hidden="true"
+      >search</span>
+      <input
+        type="search"
+        inputmode="search"
+        class="field-search"
+        placeholder="Buscar por nombre o cédula…"
+        [formControl]="busqueda"
+        aria-label="Buscar cliente por nombre o cédula"
+      />
+    </div>
+
+    <select class="field-input sm:w-48" [formControl]="estado" aria-label="Filtrar por estado de membresía">
+      @for (opcion of opcionesEstado; track opcion.valor) {
+        <option [value]="opcion.valor">{{ opcion.etiqueta }}</option>
+      }
+    </select>
+
+    <select class="field-input sm:w-48" [formControl]="plan" aria-label="Filtrar por plan">
+      <option value="">Todos los planes</option>
+      @for (p of planes(); track p.id) {
+        <option [value]="p.id">{{ p.nombre }}</option>
+      }
+    </select>
   </div>
 
   @if (error()) {
@@ -38,102 +50,171 @@
   }
 
   @if (cargando()) {
-    <div class="card-base p-8 flex items-center justify-center text-neutral-500 text-sm">
+    <div class="card-base p-8 flex items-center justify-center text-on-surface-variant text-sm">
       Cargando clientes…
     </div>
   } @else if (clientes().length === 0) {
     <div class="card-base p-8 flex flex-col items-center justify-center text-center gap-1">
       @if (hayFiltro()) {
-        <p class="font-medium text-text-principal">Ningún cliente coincide con «{{ busqueda.value.trim() }}»</p>
-        <p class="text-sm text-neutral-500">Prueba con otro nombre o cédula.</p>
+        <p class="font-medium text-on-surface">Ningún cliente coincide con los filtros aplicados</p>
+        <p class="text-sm text-on-surface-variant">Prueba con otro nombre, cédula o combinación de filtros.</p>
       } @else {
-        <p class="font-medium text-text-principal">Aún no hay clientes registrados</p>
-        <p class="text-sm text-neutral-500">Da de alta el primero con el botón "Nuevo cliente".</p>
+        <p class="font-medium text-on-surface">Aún no hay clientes registrados</p>
+        <p class="text-sm text-on-surface-variant">Da de alta el primero con el botón "Nuevo cliente".</p>
       }
     </div>
   } @else {
-    <!-- Tabla: solo en escritorio (md+). A 360px se ve la lista de tarjetas de abajo. -->
-    <div class="hidden md:block card-base overflow-hidden">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="border-b border-surface-border text-left">
-            <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Cliente</th>
-            <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Cédula</th>
-            <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Teléfono</th>
-            <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Estado</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (cliente of clientes(); track cliente.id) {
-            <tr
-              class="border-b border-surface-border last:border-0 cursor-pointer hover:bg-neutral-50"
-              (click)="irAFicha(cliente)"
-            >
-              <td class="px-4 py-3">
-                <div class="flex items-center gap-3">
-                  <span
-                    class="flex items-center justify-center size-9 rounded-full bg-primary-100 text-primary-700 font-semibold text-xs shrink-0"
-                    aria-hidden="true"
-                  >
-                    {{ iniciales(cliente.nombre) }}
-                  </span>
-                  <span class="font-medium text-text-principal">{{ cliente.nombre }}</span>
-                </div>
-              </td>
-              <td class="px-4 py-3 font-mono text-neutral-700">{{ cliente.cedula }}</td>
-              <td class="px-4 py-3 text-neutral-700">{{ cliente.telefono }}</td>
-              <td class="px-4 py-3">
-                @if (cliente.activo) {
-                  <span class="badge-success">Activo</span>
-                } @else {
-                  <span class="badge-danger">Inactivo</span>
-                }
-              </td>
+    <div class="card-base overflow-hidden flex flex-col">
+      <!-- Tabla: solo en escritorio (md+). A 360px se ve la lista de tarjetas de abajo. -->
+      <div class="hidden md:block overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-surface-container-highest/50 text-left">
+              <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Nombre</th>
+              <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Cédula</th>
+              <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Estado</th>
+              <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Tipo de plan</th>
+              <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Última visita</th>
+              <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant text-right">Acciones</th>
             </tr>
-          }
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody class="divide-y divide-outline-variant">
+            @for (cliente of clientes(); track cliente.id) {
+              <tr class="cursor-pointer hover:bg-surface-container-low" (click)="irAFicha(cliente)">
+                <td class="px-4 py-3">
+                  <div class="flex items-center gap-3">
+                    <span
+                      class="flex items-center justify-center size-9 rounded-full bg-primary-container text-on-primary-container font-semibold text-xs shrink-0"
+                      aria-hidden="true"
+                    >
+                      {{ iniciales(cliente.nombre) }}
+                    </span>
+                    <div class="min-w-0">
+                      <p class="font-medium text-on-surface truncate">{{ cliente.nombre }}</p>
+                      <p class="text-xs text-on-surface-variant">{{ cliente.telefono }}</p>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-4 py-3 text-label-sm font-mono text-on-surface-variant">{{ cliente.cedula }}</td>
+                <td class="px-4 py-3">
+                  <span [class]="claseEstado(cliente.membresia_vigente?.estado_calculado)">
+                    {{ etiquetaEstado(cliente.membresia_vigente?.estado_calculado) }}
+                  </span>
+                </td>
+                <td class="px-4 py-3 text-on-surface-variant">{{ cliente.membresia_vigente?.plan_nombre ?? '—' }}</td>
+                <td class="px-4 py-3 italic text-on-surface-variant">{{ ultimaVisita(cliente.ultima_visita) }}</td>
+                <td class="px-4 py-3">
+                  <div class="flex items-center justify-end gap-1.5">
+                    <button
+                      type="button"
+                      class="btn-icon"
+                      title="Ver ficha"
+                      aria-label="Ver ficha del cliente"
+                      (click)="ver(cliente, $event)"
+                    >
+                      <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+                    </button>
+                    @if (puedeGestionar()) {
+                      <button
+                        type="button"
+                        class="btn-icon"
+                        title="Editar"
+                        aria-label="Editar cliente"
+                        (click)="editar(cliente, $event)"
+                      >
+                        <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="btn-icon"
+                        title="Eliminar"
+                        aria-label="Eliminar cliente"
+                        [disabled]="eliminandoId() === cliente.id"
+                        (click)="eliminar(cliente, $event)"
+                      >
+                        <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                      </button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
 
-    <!-- Tarjetas: por debajo de md, incluida la vista de 360px (RF-23, sin scroll horizontal). -->
-    <div class="md:hidden flex flex-col gap-3">
-      @for (cliente of clientes(); track cliente.id) {
-        <button
-          type="button"
-          class="card-base p-4 text-left flex items-center gap-3 w-full"
-          (click)="irAFicha(cliente)"
-        >
-          <span
-            class="flex items-center justify-center size-10 rounded-full bg-primary-100 text-primary-700 font-semibold text-sm shrink-0"
-            aria-hidden="true"
-          >
-            {{ iniciales(cliente.nombre) }}
-          </span>
-          <div class="flex-1 min-w-0">
-            <p class="font-medium text-text-principal truncate">{{ cliente.nombre }}</p>
-            <p class="text-xs font-mono text-neutral-500">{{ cliente.cedula }}</p>
-            <p class="text-xs text-neutral-500">{{ cliente.telefono }}</p>
+      <!-- Tarjetas: por debajo de md, incluida la vista de 360px (RF-23, sin scroll horizontal). -->
+      <div class="md:hidden flex flex-col divide-y divide-outline-variant">
+        @for (cliente of clientes(); track cliente.id) {
+          <div class="p-4 flex flex-col gap-3" (click)="irAFicha(cliente)">
+            <div class="flex items-start gap-3">
+              <span
+                class="flex items-center justify-center size-10 rounded-full bg-primary-container text-on-primary-container font-semibold text-sm shrink-0"
+                aria-hidden="true"
+              >
+                {{ iniciales(cliente.nombre) }}
+              </span>
+              <div class="flex-1 min-w-0">
+                <p class="font-medium text-on-surface truncate">{{ cliente.nombre }}</p>
+                <p class="text-xs text-on-surface-variant">{{ cliente.telefono }}</p>
+                <p class="text-xs font-mono text-on-surface-variant">{{ cliente.cedula }}</p>
+              </div>
+              <span [class]="claseEstado(cliente.membresia_vigente?.estado_calculado)" class="shrink-0">
+                {{ etiquetaEstado(cliente.membresia_vigente?.estado_calculado) }}
+              </span>
+            </div>
+
+            <div class="flex items-center justify-between text-sm">
+              <div class="min-w-0">
+                <p class="text-on-surface-variant">{{ cliente.membresia_vigente?.plan_nombre ?? '—' }}</p>
+                <p class="italic text-on-surface-variant text-xs">{{ ultimaVisita(cliente.ultima_visita) }}</p>
+              </div>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  class="btn-icon"
+                  aria-label="Ver ficha del cliente"
+                  (click)="ver(cliente, $event)"
+                >
+                  <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+                </button>
+                @if (puedeGestionar()) {
+                  <button
+                    type="button"
+                    class="btn-icon"
+                    aria-label="Editar cliente"
+                    (click)="editar(cliente, $event)"
+                  >
+                    <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-icon"
+                    aria-label="Eliminar cliente"
+                    [disabled]="eliminandoId() === cliente.id"
+                    (click)="eliminar(cliente, $event)"
+                  >
+                    <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                  </button>
+                }
+              </div>
+            </div>
           </div>
-          @if (cliente.activo) {
-            <span class="badge-success shrink-0">Activo</span>
-          } @else {
-            <span class="badge-danger shrink-0">Inactivo</span>
-          }
-        </button>
-      }
-    </div>
+        }
+      </div>
 
-    <!-- Paginación -->
-    <div class="flex items-center justify-between text-sm text-neutral-600">
-      <p>{{ count() }} {{ count() === 1 ? 'cliente' : 'clientes' }}</p>
-      <div class="flex items-center gap-2">
-        <button type="button" class="btn-outlined" [disabled]="!previous()" (click)="paginaAnterior()">
-          Anterior
-        </button>
-        <span class="text-neutral-500">Página {{ pagina() }}</span>
-        <button type="button" class="btn-outlined" [disabled]="!next()" (click)="paginaSiguiente()">
-          Siguiente
-        </button>
+      <!-- Pie: "Mostrando X de Y" + paginación. -->
+      <div class="border-t border-outline-variant bg-surface-container-low px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-sm text-on-surface-variant">
+        <p>Mostrando {{ desde() }}–{{ hasta() }} de {{ count() }} {{ count() === 1 ? 'cliente' : 'clientes' }}</p>
+        <div class="flex items-center gap-2">
+          <button type="button" class="btn-outlined" [disabled]="!previous()" (click)="paginaAnterior()">
+            Anterior
+          </button>
+          <span>Página {{ pagina() }}</span>
+          <button type="button" class="btn-outlined" [disabled]="!next()" (click)="paginaSiguiente()">
+            Siguiente
+          </button>
+        </div>
       </div>
     </div>
   }

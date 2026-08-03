@@ -75,12 +75,35 @@ class ClienteResumenSerializer(serializers.ModelSerializer):
     """Lectura mínima para listados y para el buscador del POS (Parte B1: es
     el mismo campo que antes vivía en ``apps.ventas.serializers``, movido
     aquí para no duplicar el endpoint). No expone datos sensibles como
-    huellas ni autorizaciones: eso vive en la ficha completa (``ClienteSerializer``)."""
+    huellas ni autorizaciones: eso vive en la ficha completa (``ClienteSerializer``).
+
+    ``membresia_vigente`` y ``ultima_visita`` no son columnas de ``Cliente``:
+    llegan como anotaciones (``Subquery``) puestas por
+    ``ClienteViewSet.get_queryset`` sobre el queryset del listado -- de ahí
+    que se lean con ``getattr``/``SerializerMethodField`` en vez de con los
+    campos declarativos habituales de un ``ModelSerializer``. Si el cliente
+    no tiene ninguna membresía activa (no cancelada), ``membresia_vigente``
+    sale en ``null``.
+    """
+
+    membresia_vigente = serializers.SerializerMethodField()
+    ultima_visita = serializers.DateTimeField(read_only=True, allow_null=True)
 
     class Meta:
         model = Cliente
-        fields = ('id', 'nombre', 'cedula', 'telefono', 'activo')
+        fields = ('id', 'nombre', 'cedula', 'telefono', 'activo', 'membresia_vigente', 'ultima_visita')
         read_only_fields = fields
+
+    def get_membresia_vigente(self, obj):
+        fecha_fin = getattr(obj, 'membresia_fecha_fin', None)
+        if fecha_fin is None:
+            return None
+        return {
+            'plan_nombre': obj.membresia_plan_nombre,
+            'estado_calculado': obj.membresia_estado_calculado,
+            'fecha_fin': obj.membresia_fecha_fin,
+            'dias_restantes': obj.membresia_dias_restantes,
+        }
 
 
 class ClienteSerializer(serializers.ModelSerializer):

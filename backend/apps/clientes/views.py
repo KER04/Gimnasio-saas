@@ -7,7 +7,7 @@ devuelven como 400 (nunca 500) desde el propio serializer.
 """
 from decimal import Decimal
 
-from django.db.models import Q
+from django.db.models import OuterRef, Q, Subquery
 from django.utils import timezone
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
@@ -15,6 +15,7 @@ from rest_framework.response import Response
 
 from apps.auditoria.models import VistaMembresiaEstado, VistaVentaSaldo
 from apps.core.permissions import TienePermiso
+from apps.membresias.models import Plan
 from apps.ventas.models import DetalleVenta, Pago, Venta
 from apps.ventas.serializers import VentaSerializer
 
@@ -53,6 +54,17 @@ class ClienteViewSet(
     }
     serializer_class = ClienteSerializer
 
+    #: filtro ``?estado=`` (además de ``sin_membresia``, aparte). No incluye
+    #: ``cancelada``: no es un estado que el listado permita filtrar (la
+    #: membresía vigente de un cliente nunca es una cancelada, ver
+    #: ``get_queryset``).
+    _ESTADOS_FILTRABLES = {
+        VistaMembresiaEstado.EstadoCalculado.ACTIVA,
+        VistaMembresiaEstado.EstadoCalculado.POR_VENCER,
+        VistaMembresiaEstado.EstadoCalculado.VENCE_HOY,
+        VistaMembresiaEstado.EstadoCalculado.VENCIDA,
+    }
+
     def get_queryset(self):
         # Borrado lógico (Parte B3): un cliente eliminado desaparece de
         # listados/detalle/edición/borrado por defecto, pero su fila (y su
@@ -60,12 +72,66 @@ class ClienteViewSet(
         qs = Cliente.objects.filter(eliminado_en__isnull=True).select_related('sede_origen')
 
         if self.action == 'list':
+            # Import perezoso: evita el ciclo de import entre `apps.clientes`
+            # y `apps.asistencia` (mismo motivo que en la action `asistencias`
+            # más abajo -- esa app no depende de `apps.clientes` en sus vistas).
+            from apps.asistencia.models import Asistencia
+
+            # Membresía "vigente" del listado (RF-16): si el cliente tiene
+            # varias membresías ACTIVAS a la vez (decisión 23), se muestra la
+            # de fecha_fin más lejana. Se excluyen las canceladas: una
+            # membresía cancelada nunca es "la vigente" aunque su fecha_fin
+            # sea la más lejana. El estado sale YA CALCULADO de
+            # `v_membresias_estado` (zona horaria del gimnasio) -- no se
+            # recalcula aquí ni se usa CURRENT_DATE.
+            membresia_vigente_qs = (
+                VistaMembresiaEstado.objects.filter(cliente_id=OuterRef('pk'))
+                .exclude(estado_calculado=VistaMembresiaEstado.EstadoCalculado.CANCELADA)
+                .order_by('-fecha_fin')
+            )
+            membresia_vigente_qs = membresia_vigente_qs.annotate(
+                plan_nombre=Subquery(
+                    Plan.objects.filter(pk=OuterRef('plan_id')).values('nombre')[:1]
+                ),
+            )
+
+            ultima_visita_qs = (
+                Asistencia.objects.filter(cliente_id=OuterRef('pk'))
+                .order_by('-fecha_hora')
+                .values('fecha_hora')[:1]
+            )
+
+            # Subquery/annotate (no un query por cliente): estas cinco
+            # columnas se resuelven como subconsultas escalares DENTRO de la
+            # misma sentencia SELECT del listado, así que el número de
+            # consultas no crece con el número de clientes de la página (ver
+            # `ClienteListadoRendimientoTestCase.test_mismo_numero_de_consultas...`).
+            qs = qs.annotate(
+                membresia_plan_id=Subquery(membresia_vigente_qs.values('plan_id')[:1]),
+                membresia_plan_nombre=Subquery(membresia_vigente_qs.values('plan_nombre')[:1]),
+                membresia_fecha_fin=Subquery(membresia_vigente_qs.values('fecha_fin')[:1]),
+                membresia_dias_restantes=Subquery(membresia_vigente_qs.values('dias_restantes')[:1]),
+                membresia_estado_calculado=Subquery(membresia_vigente_qs.values('estado_calculado')[:1]),
+                ultima_visita=Subquery(ultima_visita_qs),
+            )
+
             buscar = self.request.query_params.get('buscar')
             if buscar:
                 # Búsqueda por nombre O cédula en el mismo parámetro (Parte
                 # B3), disponible también para el buscador del POS (Parte B1:
                 # este es el único endpoint de clientes que existe ahora).
                 qs = qs.filter(Q(nombre__icontains=buscar) | Q(cedula__icontains=buscar))
+
+            estado = self.request.query_params.get('estado')
+            if estado == 'sin_membresia':
+                qs = qs.filter(membresia_fecha_fin__isnull=True)
+            elif estado in self._ESTADOS_FILTRABLES:
+                qs = qs.filter(membresia_estado_calculado=estado)
+
+            plan_id = self.request.query_params.get('plan')
+            if plan_id:
+                qs = qs.filter(membresia_plan_id=plan_id)
+
             qs = qs.order_by('nombre')
 
         return qs

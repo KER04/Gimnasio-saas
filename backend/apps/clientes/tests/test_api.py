@@ -27,11 +27,15 @@ de ``RefrescoDeSesionTestCase``. Ninguna prueba de este archivo hace eso.
 """
 import datetime
 from decimal import Decimal
+from urllib.parse import urlencode
 
 from django.core.cache import cache
 from django.test import TestCase, override_settings
+from django.utils import timezone
 from rest_framework_simplejwt.tokens import AccessToken
 
+from apps.asistencia.models import Asistencia
+from apps.clientes.models import Cliente
 from apps.core.tenant import tenant_context
 from apps.membresias.models import Membresia, Plan
 
@@ -406,3 +410,322 @@ class ClienteAislamientoTestCase(TestCase):
         )
         self.assertEqual(respuesta.status_code, 200, respuesta.content)
         self.assertEqual(respuesta.json()['count'], 0)
+
+    def test_membresia_y_asistencia_de_otro_tenant_no_se_filtran_ni_se_cuentan(self):
+        """Escenario 10 (ampliación): las anotaciones de membresía/asistencia
+        del listado (``Subquery`` correlacionado por ``cliente_id``) deben
+        seguir respetando RLS -- ninguna fila de B debe colarse al calcular
+        ``membresia_vigente``/``ultima_visita`` de un cliente de A, ni un
+        cliente de B debe aparecer al filtrar por ``?estado=``/``?plan=``
+        desde A."""
+        datos_a, datos_b = self.datos_a, self.datos_b
+        hoy = timezone.localdate()
+
+        with tenant_context(datos_b['tenant'].id):
+            plan_b = Plan.objects.create(
+                tenant=datos_b['tenant'], nombre='Plan de B', tipo=Plan.TipoPlan.MENSUAL,
+                duracion_dias=30, precio=Decimal('50000'),
+            )
+            Membresia.objects.create(
+                tenant=datos_b['tenant'], cliente=datos_b['cliente'], plan=plan_b,
+                sede=datos_b['sede'], vendedor=datos_b['usuario_admin'],
+                fecha_inicio=hoy - datetime.timedelta(days=10),
+                fecha_fin=hoy - datetime.timedelta(days=2),  # vencida
+                precio_pagado=plan_b.precio,
+            )
+            Asistencia.objects.create(
+                tenant=datos_b['tenant'], sede=datos_b['sede'], cliente=datos_b['cliente'],
+                metodo=Asistencia.MetodoAsistencia.MANUAL_CEDULA, con_membresia_vigente=True,
+                fecha_hora=timezone.now(),
+            )
+
+        # Filtrar por 'vencida' desde el tenant A no debe traer al cliente de B.
+        respuesta = self.client.get(
+            '/api/clientes/?estado=vencida',
+            **_auth_headers(datos_a['usuario_admin'], 'cli-aisla-a'),
+        )
+        self.assertEqual(respuesta.status_code, 200, respuesta.content)
+        ids = [c['id'] for c in respuesta.json()['results']]
+        self.assertNotIn(datos_b['cliente'].id, ids)
+
+        # El listado normal de A tampoco debe mostrar membresía/asistencia de B.
+        respuesta_normal = self.client.get(
+            f'/api/clientes/?buscar={datos_a["cliente"].nombre}',
+            **_auth_headers(datos_a['usuario_admin'], 'cli-aisla-a'),
+        )
+        self.assertEqual(respuesta_normal.status_code, 200, respuesta_normal.content)
+        cuerpo = respuesta_normal.json()['results'][0]
+        self.assertEqual(cuerpo['id'], datos_a['cliente'].id)
+        self.assertIsNone(cuerpo['membresia_vigente'])
+        self.assertIsNone(cuerpo['ultima_visita'])
+
+
+@override_settings(ALLOWED_HOSTS=_ALLOWED_HOSTS_PRUEBA)
+class ClienteListadoMembresiaYAsistenciaTestCase(TestCase):
+    """Escenarios de la ampliación del listado (``membresia_vigente``,
+    ``ultima_visita`` y filtros ``?estado=``/``?plan=`` en
+    ``GET /api/clientes/``)."""
+
+    databases = {'default', 'ddl'}
+
+    @classmethod
+    def setUpTestData(cls):
+        cache.clear()
+        cls.datos = crear_escenario_clientes('cli-list-membr', 'LM')
+        # `timezone.localdate()`/`timezone.now()`, nunca `date.today()` ni
+        # CURRENT_DATE: la conexión corre en UTC y la app en America/Bogota;
+        # a partir de las 19:00 son días distintos.
+        hoy = timezone.localdate()
+        tenant = cls.datos['tenant']
+        sede = cls.datos['sede']
+        vendedor = cls.datos['usuario_admin']
+
+        with tenant_context(tenant.id):
+            cls.plan_mensual = Plan.objects.create(
+                tenant=tenant, nombre='Mensual LM', tipo=Plan.TipoPlan.MENSUAL,
+                duracion_dias=30, precio=Decimal('80000'),
+            )
+            cls.plan_personalizado = Plan.objects.create(
+                tenant=tenant, nombre='Personalizado LM', tipo=Plan.TipoPlan.MENSUAL,
+                duracion_dias=30, precio=Decimal('150000'), requiere_entrenador=True,
+            )
+            comun = dict(tenant=tenant, sede=sede, vendedor=vendedor)
+
+            # Cliente sembrado por la fábrica: SIN membresía y SIN
+            # asistencia -- cubre los casos "null".
+            cls.cliente_sin_membresia = cls.datos['cliente']
+
+            cls.cliente_vigente = Cliente.objects.create(
+                tenant=tenant, sede_origen=sede, nombre='Cliente Vigente LM',
+                cedula='CED-LM-0002', telefono='3000000002', direccion='Calle 2',
+            )
+            cls.membresia_vigente = Membresia.objects.create(
+                cliente=cls.cliente_vigente, plan=cls.plan_mensual,
+                fecha_inicio=hoy - datetime.timedelta(days=5),
+                fecha_fin=hoy + datetime.timedelta(days=25),
+                precio_pagado=cls.plan_mensual.precio, **comun,
+            )
+
+            # Dos membresías activas a la vez (decisión 23): debe ganar la de
+            # fecha_fin más lejana (la del plan personalizado).
+            cls.cliente_doble = Cliente.objects.create(
+                tenant=tenant, sede_origen=sede, nombre='Cliente Doble LM',
+                cedula='CED-LM-0003', telefono='3000000003', direccion='Calle 3',
+            )
+            cls.membresia_doble_corta = Membresia.objects.create(
+                cliente=cls.cliente_doble, plan=cls.plan_mensual,
+                fecha_inicio=hoy - datetime.timedelta(days=10),
+                fecha_fin=hoy + datetime.timedelta(days=20),
+                precio_pagado=cls.plan_mensual.precio, **comun,
+            )
+            cls.membresia_doble_lejana = Membresia.objects.create(
+                cliente=cls.cliente_doble, plan=cls.plan_personalizado,
+                fecha_inicio=hoy - datetime.timedelta(days=1),
+                fecha_fin=hoy + datetime.timedelta(days=60),
+                precio_pagado=cls.plan_personalizado.precio, **comun,
+            )
+
+            cls.cliente_vencido = Cliente.objects.create(
+                tenant=tenant, sede_origen=sede, nombre='Cliente Vencido LM',
+                cedula='CED-LM-0004', telefono='3000000004', direccion='Calle 4',
+            )
+            cls.membresia_vencida = Membresia.objects.create(
+                cliente=cls.cliente_vencido, plan=cls.plan_mensual,
+                fecha_inicio=hoy - datetime.timedelta(days=40),
+                fecha_fin=hoy - datetime.timedelta(days=10),
+                precio_pagado=cls.plan_mensual.precio, **comun,
+            )
+
+            # Dos asistencias del cliente vigente: debe ganar la más reciente.
+            cls.asistencia_antigua = Asistencia.objects.create(
+                tenant=tenant, sede=sede, cliente=cls.cliente_vigente,
+                metodo=Asistencia.MetodoAsistencia.MANUAL_CEDULA, con_membresia_vigente=True,
+                fecha_hora=timezone.now() - datetime.timedelta(days=2),
+            )
+            cls.asistencia_reciente = Asistencia.objects.create(
+                tenant=tenant, sede=sede, cliente=cls.cliente_vigente,
+                metodo=Asistencia.MetodoAsistencia.MANUAL_CEDULA, con_membresia_vigente=True,
+                fecha_hora=timezone.now() - datetime.timedelta(hours=1),
+            )
+
+    def _listar(self, **params):
+        query = f'?{urlencode(params)}' if params else ''
+        respuesta = self.client.get(
+            f'/api/clientes/{query}',
+            **_auth_headers(self.datos['usuario_admin'], 'cli-list-membr'),
+        )
+        self.assertEqual(respuesta.status_code, 200, respuesta.content)
+        return {c['id']: c for c in respuesta.json()['results']}
+
+    def test_cliente_con_membresia_vigente_trae_plan_y_estado(self):
+        """Escenario 1."""
+        por_id = self._listar()
+        cuerpo = por_id[self.cliente_vigente.id]
+        self.assertIsNotNone(cuerpo['membresia_vigente'])
+        self.assertEqual(cuerpo['membresia_vigente']['plan_nombre'], 'Mensual LM')
+        self.assertEqual(cuerpo['membresia_vigente']['estado_calculado'], 'activa')
+        self.assertEqual(
+            cuerpo['membresia_vigente']['fecha_fin'],
+            self.membresia_vigente.fecha_fin.isoformat(),
+        )
+        self.assertEqual(cuerpo['membresia_vigente']['dias_restantes'], 25)
+
+    def test_cliente_sin_membresia_trae_null(self):
+        """Escenario 2."""
+        por_id = self._listar()
+        cuerpo = por_id[self.cliente_sin_membresia.id]
+        self.assertIsNone(cuerpo['membresia_vigente'])
+
+    def test_cliente_con_dos_membresias_activas_devuelve_la_de_fecha_fin_mas_lejana(self):
+        """Escenario 3 (decisión 23)."""
+        por_id = self._listar()
+        cuerpo = por_id[self.cliente_doble.id]
+        self.assertIsNotNone(cuerpo['membresia_vigente'])
+        self.assertEqual(cuerpo['membresia_vigente']['plan_nombre'], 'Personalizado LM')
+        self.assertEqual(
+            cuerpo['membresia_vigente']['fecha_fin'],
+            self.membresia_doble_lejana.fecha_fin.isoformat(),
+        )
+
+    def test_cliente_con_membresia_vencida(self):
+        """Escenario 4."""
+        por_id = self._listar()
+        cuerpo = por_id[self.cliente_vencido.id]
+        self.assertIsNotNone(cuerpo['membresia_vigente'])
+        self.assertEqual(cuerpo['membresia_vigente']['estado_calculado'], 'vencida')
+        self.assertEqual(cuerpo['membresia_vigente']['dias_restantes'], -10)
+
+    def test_ultima_visita_refleja_la_mas_reciente_o_null(self):
+        """Escenario 5."""
+        por_id = self._listar()
+        self.assertIsNotNone(por_id[self.cliente_vigente.id]['ultima_visita'])
+        # La asistencia devuelta corresponde a la MÁS RECIENTE, no a la primera creada.
+        self.assertEqual(
+            datetime.datetime.fromisoformat(por_id[self.cliente_vigente.id]['ultima_visita']),
+            self.asistencia_reciente.fecha_hora,
+        )
+        self.assertIsNone(por_id[self.cliente_sin_membresia.id]['ultima_visita'])
+        self.assertIsNone(por_id[self.cliente_doble.id]['ultima_visita'])
+
+    def test_filtro_estado_vencida_devuelve_solo_esos(self):
+        """Escenario 6 (parte 1)."""
+        por_id = self._listar(estado='vencida')
+        self.assertEqual(set(por_id.keys()), {self.cliente_vencido.id})
+
+    def test_filtro_estado_sin_membresia_devuelve_solo_los_que_no_tienen(self):
+        """Escenario 6 (parte 2)."""
+        por_id = self._listar(estado='sin_membresia')
+        ids = set(por_id.keys())
+        self.assertIn(self.cliente_sin_membresia.id, ids)
+        self.assertNotIn(self.cliente_vigente.id, ids)
+        self.assertNotIn(self.cliente_doble.id, ids)
+        self.assertNotIn(self.cliente_vencido.id, ids)
+
+    def test_filtro_plan_devuelve_solo_los_de_ese_plan(self):
+        """Escenario 7: el plan del cliente doble es el 'lejano' (personalizado)."""
+        por_id = self._listar(plan=self.plan_personalizado.id)
+        self.assertEqual(set(por_id.keys()), {self.cliente_doble.id})
+
+        por_id_mensual = self._listar(plan=self.plan_mensual.id)
+        self.assertEqual(
+            set(por_id_mensual.keys()), {self.cliente_vigente.id, self.cliente_vencido.id},
+        )
+
+    def test_filtros_combinados_con_buscar(self):
+        """Escenario 8."""
+        por_id = self._listar(estado='activa', buscar='Vigente LM')
+        self.assertEqual(set(por_id.keys()), {self.cliente_vigente.id})
+
+        # Combinado con un `buscar` que NO calza con el estado -> vacío.
+        vacio = self._listar(estado='vencida', buscar='Vigente LM')
+        self.assertEqual(vacio, {})
+
+
+@override_settings(ALLOWED_HOSTS=_ALLOWED_HOSTS_PRUEBA)
+class ClienteListadoRendimientoTestCase(TestCase):
+    """Escenario 9 del encargo de ampliación: el número de consultas del
+    listado NO debe depender del número de clientes -- las columnas nuevas
+    (``membresia_vigente``, ``ultima_visita``) se resuelven con ``Subquery``
+    correlacionados dentro de la MISMA sentencia SELECT, no con una consulta
+    adicional por fila.
+
+    ``PAGE_SIZE`` (20, en ``config.settings.base``) no tiene
+    ``PAGE_SIZE_QUERY_PARAM`` configurado -- ``?page_size=`` no lo sobreescribe
+    -- así que la comparación 3 vs. 15 se hace con DOS TENANTS (uno con 3
+    clientes, otro con 15, ambos por debajo del tamaño de página) en vez de
+    con querystrings, para que la única variable entre ambas llamadas sea,
+    de verdad, cuántos clientes trae la respuesta.
+    """
+
+    databases = {'default', 'ddl'}
+
+    @classmethod
+    def setUpTestData(cls):
+        cache.clear()
+        cls.datos_3 = cls._crear_tenant_con_clientes('cli-rend-3', 'REND3', total=3)
+        cls.datos_15 = cls._crear_tenant_con_clientes('cli-rend-15', 'REND15', total=15)
+
+    @staticmethod
+    def _crear_tenant_con_clientes(subdominio, sufijo, total):
+        datos = crear_escenario_clientes(subdominio, sufijo)
+        tenant = datos['tenant']
+        sede = datos['sede']
+        vendedor = datos['usuario_admin']
+        hoy = timezone.localdate()
+
+        with tenant_context(tenant.id):
+            plan = Plan.objects.create(
+                tenant=tenant, nombre=f'Plan {sufijo}', tipo=Plan.TipoPlan.MENSUAL,
+                duracion_dias=30, precio=Decimal('80000'),
+            )
+            # La fábrica ya deja un cliente sembrado (sin membresía ni
+            # asistencia); se completa hasta `total` con clientes nuevos,
+            # alternando con/sin membresía+asistencia para que las
+            # anotaciones tengan trabajo real en ambos sentidos (no solo el
+            # camino "todo NULL").
+            for i in range(total - 1):
+                cliente = Cliente.objects.create(
+                    tenant=tenant, sede_origen=sede, nombre=f'Cliente {sufijo} {i:02d}',
+                    # 'X' + índice: la fábrica ya usa '{sufijo}-0001' para el
+                    # cliente sembrado -- este prefijo evita chocar con esa
+                    # cédula (uq_clientes_cedula es única por tenant+cédula).
+                    cedula=f'CED-{sufijo}-X{i:04d}', telefono='3000000000', direccion='Calle X',
+                )
+                if i % 2 == 0:
+                    Membresia.objects.create(
+                        tenant=tenant, cliente=cliente, plan=plan, sede=sede, vendedor=vendedor,
+                        fecha_inicio=hoy - datetime.timedelta(days=5),
+                        fecha_fin=hoy + datetime.timedelta(days=25),
+                        precio_pagado=plan.precio,
+                    )
+                    Asistencia.objects.create(
+                        tenant=tenant, sede=sede, cliente=cliente,
+                        metodo=Asistencia.MetodoAsistencia.MANUAL_CEDULA, con_membresia_vigente=True,
+                        fecha_hora=timezone.now(),
+                    )
+
+        return datos
+
+    def _listar(self, datos, subdominio):
+        return self.client.get('/api/clientes/', **_auth_headers(datos['usuario_admin'], subdominio))
+
+    def test_mismo_numero_de_consultas_con_3_que_con_15_clientes(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        with CaptureQueriesContext(connection) as capturado_3:
+            respuesta_3 = self._listar(self.datos_3, 'cli-rend-3')
+        self.assertEqual(respuesta_3.status_code, 200, respuesta_3.content)
+        self.assertEqual(len(respuesta_3.json()['results']), 3)
+
+        with CaptureQueriesContext(connection) as capturado_15:
+            respuesta_15 = self._listar(self.datos_15, 'cli-rend-15')
+        self.assertEqual(respuesta_15.status_code, 200, respuesta_15.content)
+        self.assertEqual(len(respuesta_15.json()['results']), 15)
+
+        n_3, n_15 = len(capturado_3), len(capturado_15)
+        self.assertEqual(
+            n_3, n_15,
+            'El número de consultas del listado no debe depender del número de '
+            f'clientes de la página (3 clientes: {n_3} consultas; 15 clientes: {n_15} consultas).',
+        )

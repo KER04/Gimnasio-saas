@@ -2,16 +2,12 @@
 @import "tailwindcss";
 
 /* =========================================================================
- * SISTEMA DE DISEÑO
+ * SISTEMA DE DISEÑO — KINETIC ENGINE
  * =========================================================================
- * Tokens de la paleta de referencia del producto. Tailwind v4 los toma
- * directamente de aquí (no hay tailwind.config.js): cualquier `bg-primary-500`,
- * `text-neutral-700`, `font-display`, etc. sale de este bloque `@theme`.
- *
- * Las escalas de tinte se generan con `color-mix()` a partir del tono base
- * (500), mezclando con blanco hacia los claros y con negro hacia los oscuros.
- * Así no hay que inventar a mano diez hexadecimales por color y la relación
- * entre pasos es consistente.
+ * Tokens Material 3 del sistema de diseño "Kinetic Engine". Tailwind v4 los
+ * toma directamente de aquí (no hay tailwind.config.js): cualquier
+ * `bg-primary`, `text-on-surface`, `font-display-lg`, etc. sale de este
+ * bloque `@theme`.
  * ========================================================================= */
 @theme {
   /* ---- Tipografías ---- */
@@ -19,89 +15,153 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
 
-  /* ---- Primary (morado, acciones principales) ---- */
-  --color-primary-50: color-mix(in oklch, #8869bf 5%, white);
-  --color-primary-100: color-mix(in oklch, #8869bf 15%, white);
-  --color-primary-200: color-mix(in oklch, #8869bf 30%, white);
-  --color-primary-300: color-mix(in oklch, #8869bf 50%, white);
-  --color-primary-400: color-mix(in oklch, #8869bf 75%, white);
-  --color-primary-500: #8869bf;
-  --color-primary-600: color-mix(in oklch, #8869bf 88%, black);
-  --color-primary-700: color-mix(in oklch, #8869bf 72%, black);
-  --color-primary-800: color-mix(in oklch, #8869bf 58%, black);
-  --color-primary-900: color-mix(in oklch, #8869bf 45%, black);
-  --color-primary-950: color-mix(in oklch, #8869bf 30%, black);
+  /* ---- Superficies ---- */
+  --color-surface: #fdf7ff;
+  --color-surface-dim: #ded8e0;
+  --color-surface-bright: #fdf7ff;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f8f2fa;
+  --color-surface-container: #f2ecf4;
+  --color-surface-container-high: #ece6ee;
+  --color-surface-container-highest: #e6e0e9;
+  --color-on-surface: #1d1b20;
+  --color-on-surface-variant: #494551;
+  --color-surface-variant: #e6e0e9;
 
-  /* ---- Secondary (morado grisáceo, apoyo) ---- */
-  --color-secondary-50: color-mix(in oklch, #7c7296 5%, white);
-  --color-secondary-100: color-mix(in oklch, #7c7296 15%, white);
-  --color-secondary-200: color-mix(in oklch, #7c7296 30%, white);
-  --color-secondary-300: color-mix(in oklch, #7c7296 50%, white);
-  --color-secondary-400: color-mix(in oklch, #7c7296 75%, white);
-  --color-secondary-500: #7c7296;
-  --color-secondary-600: color-mix(in oklch, #7c7296 88%, black);
-  --color-secondary-700: color-mix(in oklch, #7c7296 72%, black);
-  --color-secondary-800: color-mix(in oklch, #7c7296 58%, black);
-  --color-secondary-900: color-mix(in oklch, #7c7296 45%, black);
-  --color-secondary-950: color-mix(in oklch, #7c7296 30%, black);
+  --color-inverse-surface: #322f35;
+  --color-inverse-on-surface: #f5eff7;
 
-  /* ---- Tertiary (dorado, acentos y destacados) ---- */
-  --color-tertiary-50: color-mix(in oklch, #c9a74d 5%, white);
-  --color-tertiary-100: color-mix(in oklch, #c9a74d 15%, white);
-  --color-tertiary-200: color-mix(in oklch, #c9a74d 30%, white);
-  --color-tertiary-300: color-mix(in oklch, #c9a74d 50%, white);
-  --color-tertiary-400: color-mix(in oklch, #c9a74d 75%, white);
-  --color-tertiary-500: #c9a74d;
-  --color-tertiary-600: color-mix(in oklch, #c9a74d 88%, black);
-  --color-tertiary-700: color-mix(in oklch, #c9a74d 72%, black);
-  --color-tertiary-800: color-mix(in oklch, #c9a74d 58%, black);
-  --color-tertiary-900: color-mix(in oklch, #c9a74d 45%, black);
-  --color-tertiary-950: color-mix(in oklch, #c9a74d 30%, black);
+  --color-outline: #7a7582;
+  --color-outline-variant: #cbc4d2;
+  --color-surface-tint: #6750a4;
 
-  /* ---- Neutral (grises de texto y bordes) ---- */
-  --color-neutral-50: color-mix(in oklch, #79767d 5%, white);
-  --color-neutral-100: color-mix(in oklch, #79767d 12%, white);
-  --color-neutral-200: color-mix(in oklch, #79767d 25%, white);
-  --color-neutral-300: color-mix(in oklch, #79767d 42%, white);
-  --color-neutral-400: color-mix(in oklch, #79767d 65%, white);
-  --color-neutral-500: #79767d;
-  --color-neutral-600: color-mix(in oklch, #79767d 85%, black);
-  --color-neutral-700: color-mix(in oklch, #79767d 68%, black);
-  --color-neutral-800: color-mix(in oklch, #79767d 50%, black);
-  --color-neutral-900: color-mix(in oklch, #79767d 32%, black);
-  --color-neutral-950: color-mix(in oklch, #79767d 18%, black);
+  /* ---- Primary ---- */
+  --color-primary: #4f378a;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #6750a4;
+  --color-on-primary-container: #e0d2ff;
+  --color-inverse-primary: #cfbcff;
 
-  /* ---- Superficies y texto ---- */
-  --color-surface-page: #f4f3f7;
-  --color-surface-card: #ffffff;
-  --color-surface-border: #e7e5ec;
-  --color-text-principal: #1a1a1f;
+  /* ---- Secondary ---- */
+  --color-secondary: #63597c;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #e1d4fd;
+  --color-on-secondary-container: #645a7d;
 
-  /* ---- Estados (badges tipo ACTIVO / PAUSADO del mockup) ---- */
+  /* ---- Tertiary ---- */
+  --color-tertiary: #765b00;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #c9a74d;
+  --color-on-tertiary-container: #503d00;
+
+  /* ---- Error ---- */
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+
+  /* ---- Fixed (tintes que no cambian entre esquemas claro/oscuro) ---- */
+  --color-primary-fixed: #e9ddff;
+  --color-primary-fixed-dim: #cfbcff;
+  --color-on-primary-fixed: #22005d;
+  --color-on-primary-fixed-variant: #4f378a;
+
+  --color-secondary-fixed: #e9ddff;
+  --color-secondary-fixed-dim: #cdc0e9;
+  --color-on-secondary-fixed: #1f1635;
+  --color-on-secondary-fixed-variant: #4b4263;
+
+  --color-tertiary-fixed: #ffdf93;
+  --color-tertiary-fixed-dim: #e7c365;
+  --color-on-tertiary-fixed: #241a00;
+  --color-on-tertiary-fixed-variant: #594400;
+
+  /* ---- Fondo ---- */
+  --color-background: #fdf7ff;
+  --color-on-background: #1d1b20;
+
+  /* ---- Estados semánticos (chips ACTIVO / PAUSADO / EXPIRADO) ---- */
   --color-success-bg: #e3f5e9;
   --color-success-text: #1e7a45;
   --color-warning-bg: #fbf0dc;
   --color-warning-text: #96660f;
-  --color-danger-bg: #fbe6e6;
-  --color-danger-text: #a32727;
+  --color-danger-bg: #ffdad6;
+  --color-danger-text: #93000a;
+
+  /* ---- Tipografía (escala completa) ---- */
+  --text-display-lg: 3rem;
+  --text-display-lg--line-height: 3.5rem;
+  --text-display-lg--font-weight: 800;
+  --text-display-lg--letter-spacing: -0.02em;
+
+  --text-headline-lg: 2rem;
+  --text-headline-lg--line-height: 2.5rem;
+  --text-headline-lg--font-weight: 700;
+  --text-headline-lg--letter-spacing: -0.01em;
+
+  --text-headline-lg-mobile: 1.75rem;
+  --text-headline-lg-mobile--line-height: 2.25rem;
+  --text-headline-lg-mobile--font-weight: 700;
+
+  --text-headline-md: 1.5rem;
+  --text-headline-md--line-height: 2rem;
+  --text-headline-md--font-weight: 600;
+
+  --text-body-lg: 1.125rem;
+  --text-body-lg--line-height: 1.75rem;
+  --text-body-lg--font-weight: 400;
+
+  --text-body-md: 1rem;
+  --text-body-md--line-height: 1.5rem;
+  --text-body-md--font-weight: 400;
+
+  --text-label-sm: 0.75rem;
+  --text-label-sm--line-height: 1rem;
+  --text-label-sm--font-weight: 500;
+  --text-label-sm--letter-spacing: 0.05em;
 
   /* ---- Radios ---- */
-  --radius-card: 16px;
-  --radius-field: 10px;
+  --radius-sm: 0.125rem;
+  --radius-DEFAULT: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-full: 9999px;
 
-  /* ---- Sombras sutiles ---- */
-  --shadow-card: 0 1px 2px rgba(26, 26, 31, 0.04), 0 4px 16px rgba(26, 26, 31, 0.06);
-  --shadow-card-hover: 0 2px 4px rgba(26, 26, 31, 0.05), 0 8px 24px rgba(26, 26, 31, 0.08);
+  /* ---- Espaciado ---- */
+  --spacing: 4px;
+  --spacing-xs: 0.5rem;
+  --spacing-sm: 1rem;
+  --spacing-md: 1.5rem;
+  --spacing-lg: 2rem;
+  --spacing-xl: 3rem;
+
+  --width-sidebar: 260px;
+  --height-header: 72px;
+  --width-container-max: 1440px;
 }
 
 body {
-  background-color: var(--color-surface-page);
-  color: var(--color-text-principal);
+  background-color: var(--color-background);
+  color: var(--color-on-background);
   font-family: var(--font-sans);
 }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-display);
+}
+
+/* Material Symbols Outlined: variación de relleno/peso/grado/óptica a cero,
+ * como manda el sistema de diseño (icono en trazo, no relleno). */
+.material-symbols-outlined {
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+  font-size: 1.25rem;
+  line-height: 1;
+  user-select: none;
 }
 
 /* =========================================================================
@@ -119,19 +179,19 @@ h1, h2, h3, h4, h5, h6 {
   gap: 0.5rem;
   min-height: 44px;
   padding-inline: 1.25rem;
-  border-radius: var(--radius-field);
+  border-radius: var(--radius-lg);
   font-family: var(--font-sans);
   font-weight: 600;
   font-size: 0.9375rem;
   line-height: 1;
   transition: background-color 0.15s ease;
   cursor: pointer;
-  border: 1.5px solid transparent;
-  background-color: var(--color-primary-500);
-  color: white;
+  border: 2px solid transparent;
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
 
   &:hover {
-    background-color: var(--color-primary-600);
+    background-color: var(--color-primary-container);
   }
   &:disabled {
     opacity: 0.6;
@@ -146,19 +206,19 @@ h1, h2, h3, h4, h5, h6 {
   gap: 0.5rem;
   min-height: 44px;
   padding-inline: 1.25rem;
-  border-radius: var(--radius-field);
+  border-radius: var(--radius-lg);
   font-family: var(--font-sans);
   font-weight: 600;
   font-size: 0.9375rem;
   line-height: 1;
   transition: background-color 0.15s ease;
   cursor: pointer;
-  border: 1.5px solid transparent;
-  background-color: var(--color-secondary-100);
-  color: var(--color-secondary-800);
+  border: 2px solid transparent;
+  background-color: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
 
   &:hover {
-    background-color: var(--color-secondary-200);
+    background-color: color-mix(in oklch, var(--color-secondary-container) 80%, black);
   }
   &:disabled {
     opacity: 0.6;
@@ -173,19 +233,19 @@ h1, h2, h3, h4, h5, h6 {
   gap: 0.5rem;
   min-height: 44px;
   padding-inline: 1.25rem;
-  border-radius: var(--radius-field);
+  border-radius: var(--radius-lg);
   font-family: var(--font-sans);
   font-weight: 600;
   font-size: 0.9375rem;
   line-height: 1;
   transition: background-color 0.15s ease, color 0.15s ease;
   cursor: pointer;
-  border: 1.5px solid transparent;
-  background-color: white;
-  color: var(--color-primary-600);
+  border: 2px solid transparent;
+  background-color: var(--color-surface-container-lowest);
+  color: var(--color-primary);
 
   &:hover {
-    background-color: var(--color-primary-50);
+    background-color: var(--color-surface-container-low);
   }
   &:disabled {
     opacity: 0.6;
@@ -193,6 +253,9 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+/* Botón secundario "de verdad" del sistema nuevo: contorno de 2px, sin
+ * relleno. Se mantiene `btn-outlined` como alias por compatibilidad de
+ * nombre con el resto de plantillas. */
 @utility btn-outlined {
   display: inline-flex;
   align-items: center;
@@ -200,7 +263,7 @@ h1, h2, h3, h4, h5, h6 {
   gap: 0.5rem;
   min-height: 44px;
   padding-inline: 1.25rem;
-  border-radius: var(--radius-field);
+  border-radius: var(--radius-lg);
   font-family: var(--font-sans);
   font-weight: 600;
   font-size: 0.9375rem;
@@ -208,12 +271,12 @@ h1, h2, h3, h4, h5, h6 {
   transition: background-color 0.15s ease, border-color 0.15s ease;
   cursor: pointer;
   background-color: transparent;
-  border: 1.5px solid var(--color-neutral-300);
-  color: var(--color-text-principal);
+  border: 2px solid var(--color-outline-variant);
+  color: var(--color-on-surface);
 
   &:hover {
-    background-color: var(--color-neutral-50);
-    border-color: var(--color-neutral-400);
+    background-color: var(--color-surface-container-low);
+    border-color: var(--color-outline);
   }
   &:disabled {
     opacity: 0.6;
@@ -227,15 +290,15 @@ h1, h2, h3, h4, h5, h6 {
   justify-content: center;
   min-width: 44px;
   min-height: 44px;
-  border-radius: var(--radius-field);
+  border-radius: var(--radius-lg);
   background-color: transparent;
-  border: 1.5px solid var(--color-neutral-200);
-  color: var(--color-neutral-700);
+  border: 1px solid var(--color-outline-variant);
+  color: var(--color-on-surface-variant);
   transition: background-color 0.15s ease;
   cursor: pointer;
 
   &:hover {
-    background-color: var(--color-neutral-50);
+    background-color: var(--color-surface-container-low);
   }
 }
 
@@ -244,18 +307,18 @@ h1, h2, h3, h4, h5, h6 {
   width: 100%;
   min-height: 44px;
   padding-inline: 0.875rem;
-  border-radius: var(--radius-field);
-  border: 1.5px solid var(--color-surface-border);
-  background-color: white;
-  color: var(--color-text-principal);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-outline-variant);
+  background-color: var(--color-surface-container-lowest);
+  color: var(--color-on-surface);
   font-family: var(--font-sans);
   font-size: 0.9375rem;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 
   &:focus {
     outline: none;
-    border-color: var(--color-primary-400);
-    box-shadow: 0 0 0 3px var(--color-primary-100);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary);
   }
 }
 
@@ -264,26 +327,29 @@ h1, h2, h3, h4, h5, h6 {
   width: 100%;
   min-height: 44px;
   padding-inline: 2.75rem;
-  border-radius: 999px;
-  border: 1.5px solid var(--color-surface-border);
-  background-color: white;
-  color: var(--color-text-principal);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-outline-variant);
+  background-color: var(--color-surface-container-lowest);
+  color: var(--color-on-surface);
   font-family: var(--font-sans);
   font-size: 0.9375rem;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 
   &:focus {
     outline: none;
-    border-color: var(--color-primary-400);
-    box-shadow: 0 0 0 3px var(--color-primary-100);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary);
   }
 }
 
+/* Padding (24px = p-6) se aplica en cada uso vía utilidades de Tailwind, no
+ * aquí: así los sitios que necesitan menos aire (p. ej. filas de tabla o
+ * tarjetas apiladas a 360px) pueden usar p-4 sin que compita en cascada con
+ * un padding fijo del propio `card-base`. */
 @utility card-base {
-  background-color: var(--color-surface-card);
-  border-radius: var(--radius-card);
-  border: 1px solid var(--color-surface-border);
-  box-shadow: var(--shadow-card);
+  background-color: var(--color-surface-container-lowest);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-outline-variant);
 }
 
 @utility badge-success {
@@ -291,7 +357,7 @@ h1, h2, h3, h4, h5, h6 {
   align-items: center;
   padding-inline: 0.625rem;
   padding-block: 0.25rem;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   font-size: 0.75rem;
   font-weight: 600;
   background-color: var(--color-success-bg);
@@ -303,7 +369,7 @@ h1, h2, h3, h4, h5, h6 {
   align-items: center;
   padding-inline: 0.625rem;
   padding-block: 0.25rem;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   font-size: 0.75rem;
   font-weight: 600;
   background-color: var(--color-warning-bg);
@@ -315,7 +381,7 @@ h1, h2, h3, h4, h5, h6 {
   align-items: center;
   padding-inline: 0.625rem;
   padding-block: 0.25rem;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   font-size: 0.75rem;
   font-weight: 600;
   background-color: var(--color-danger-bg);
@@ -328,9 +394,9 @@ h1, h2, h3, h4, h5, h6 {
   align-items: center;
   padding-inline: 0.625rem;
   padding-block: 0.25rem;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   font-size: 0.75rem;
   font-weight: 600;
-  background-color: var(--color-neutral-100);
-  color: var(--color-neutral-700);
+  background-color: var(--color-surface-container-high);
+  color: var(--color-on-surface-variant);
 }

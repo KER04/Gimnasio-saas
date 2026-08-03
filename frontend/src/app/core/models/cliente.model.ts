@@ -29,6 +29,24 @@ export interface Cliente {
   autorizacion_biometria: boolean | null;
 }
 
+/** Estados calculados de `v_membresias_estado` (RF-16). */
+export type EstadoMembresia = 'activa' | 'por_vencer' | 'vence_hoy' | 'vencida' | 'cancelada';
+
+/** Valores válidos del filtro `?estado=` del listado (`GET /api/clientes/`).
+ * `sin_membresia` no es un estado de `v_membresias_estado`: significa que el
+ * cliente no tiene ninguna membresía vigente (`membresia_vigente === null`). */
+export type EstadoFiltroCliente = 'activa' | 'por_vencer' | 'vence_hoy' | 'vencida' | 'sin_membresia';
+
+/** Membresía vigente resumida, tal como llega embebida en cada fila del
+ * listado (anotación del queryset, no una consulta aparte). `null` si el
+ * cliente no tiene ninguna membresía activa. */
+export interface MembresiaVigenteResumen {
+  plan_nombre: string;
+  estado_calculado: EstadoMembresia;
+  fecha_fin: string;
+  dias_restantes: number;
+}
+
 /** Fila mínima del listado (`ClienteResumenSerializer`, `GET /api/clientes/`). */
 export interface ClienteResumen {
   id: number;
@@ -36,6 +54,8 @@ export interface ClienteResumen {
   cedula: string;
   telefono: string;
   activo: boolean;
+  membresia_vigente: MembresiaVigenteResumen | null;
+  ultima_visita: string | null;
 }
 
 /** Cuerpo de alta/edición (`POST`/`PATCH /api/clientes/`). Las autorizaciones
@@ -50,9 +70,6 @@ export interface ClienteFormulario {
   autoriza_tratamiento_datos?: boolean | null;
   autoriza_biometria?: boolean | null;
 }
-
-/** Estados calculados de `v_membresias_estado` (RF-16). */
-export type EstadoMembresia = 'activa' | 'por_vencer' | 'vence_hoy' | 'vencida' | 'cancelada';
 
 /** Una membresía con su estado YA calculado por la base de datos
  * (`GET /api/clientes/{id}/membresias/`). Un cliente puede tener varias
