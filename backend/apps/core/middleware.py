@@ -53,7 +53,26 @@ _TENANT_CACHE_PREFIX = 'core:tenant:subdominio:'
 
 # Sentinela para poder cachear también los "no existe" (evita repetir la
 # consulta a `tenants` en cada petición de un subdominio inválido/typo).
-_MISS = object()
+#
+# Es una CADENA y no un `object()`, y se compara por VALOR y no con `is`.
+#
+# El caché de Django SERIALIZA todo lo que guarda -- no solo Redis, también
+# `LocMemCache`, que hace `pickle.dumps` al escribir y `pickle.loads` al
+# leer. Lo que se recupera es por tanto siempre una reconstrucción, nunca el
+# mismo objeto que se guardó, así que `cacheado is _MISS` era False SIEMPRE.
+#
+# La consecuencia no era una consulta de más: el centinela se ESCAPABA de
+# esta función haciéndose pasar por un Tenant. Recorría el middleware hasta
+# que alguien le pedía `.id` y reventaba con
+#
+#     AttributeError: 'object' object has no attribute 'id'
+#
+# dejando caído a todo el que entrara por un subdominio inexistente (y, en
+# un PaaS, el dominio asignado por defecto es exactamente eso). El fallo
+# estuvo latente desde el principio en todos los entornos: solo hacía falta
+# pedir dos veces el mismo subdominio inexistente dentro de la ventana del
+# TTL para provocarlo.
+_MISS = '__core.tenant.no_existe__'
 
 # Estados de tenant que NUNCA deben resolver, aunque el subdominio exista.
 _ESTADOS_TENANT_EXCLUIDOS = ('cancelado', 'suspendido')
@@ -111,7 +130,13 @@ def _tenant_por_subdominio(subdominio):
     clave_cache = f'{_TENANT_CACHE_PREFIX}{subdominio.lower()}'
     cacheado = cache.get(clave_cache)
     if cacheado is not None:
-        return None if cacheado is _MISS else cacheado
+        # De aquí solo sale un Tenant de verdad o None. La comprobación de
+        # tipo no es paranoia: además del centinela, cubre lo que quede en
+        # una caché COMPARTIDA escrito por una versión anterior del código
+        # tras un despliegue (Redis sobrevive al reinicio de la aplicación).
+        # Lo peor que puede pasar si el valor no se reconoce es una consulta
+        # de más; lo peor si se dejara pasar es tumbar el sitio.
+        return cacheado if isinstance(cacheado, Tenant) else None
 
     try:
         tenant = Tenant.objects.using('default').exclude(

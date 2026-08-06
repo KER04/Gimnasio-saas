@@ -142,3 +142,59 @@ class TenantMiddlewareRutaExentaTestCase(TestCase):
         # que la petición se procesó sin exigir tenant: ni 500, ni un 4xx
         # relacionado con falta de tenant.
         self.assertIn(respuesta.status_code, (400, 401))
+
+
+@override_settings(ROOT_URLCONF=_URLCONF_PRUEBA, ALLOWED_HOSTS=_ALLOWED_HOSTS_PRUEBA)
+class TenantMiddlewareSubdominioInexistenteTestCase(TestCase):
+    """Un subdominio que no corresponde a ningún gimnasio.
+
+    Parece un caso de borde y no lo es: en un PaaS, el dominio que se asigna
+    por defecto (``mi-app-production-11c4.up.railway.app``) es exactamente
+    eso, así que este camino lo recorre CADA petición al sitio.
+    """
+
+    databases = {'default', 'ddl'}
+
+    def setUp(self):
+        cache.clear()
+
+    def test_un_subdominio_inexistente_se_puede_pedir_dos_veces(self):
+        """La segunda es la que importa: la primera consulta la base y cachea
+        el "no existe"; la segunda lee ese valor cacheado, que es donde estaba
+        el fallo. Pedir la página dos veces tumbaba el sitio entero con
+        ``AttributeError: 'object' object has no attribute 'id'``."""
+        cliente = Client()
+
+        primera = cliente.get('/ping/', HTTP_HOST='noexiste.testserver')
+        segunda = cliente.get('/ping/', HTTP_HOST='noexiste.testserver')
+
+        self.assertEqual(primera.status_code, 200)
+        self.assertEqual(segunda.status_code, 200, segunda.content)
+        self.assertIsNone(segunda.json()['tenant_id'])
+
+    def test_el_centinela_del_cache_no_se_escapa_como_si_fuera_un_tenant(self):
+        """El centinela debe compararse por VALOR, nunca con ``is``.
+
+        Django serializa lo que guarda en el caché -- todos los backends,
+        también ``LocMemCache`` --, así que lo que se lee es siempre una
+        reconstrucción y jamás el mismo objeto que se escribió. Con un
+        ``object()`` como centinela, ``cacheado is _MISS`` daba False
+        siempre y el centinela salía de la función haciéndose pasar por un
+        Tenant.
+        """
+        from apps.core.middleware import _MISS, _TENANT_CACHE_PREFIX, _tenant_por_subdominio
+
+        cache.set(f'{_TENANT_CACHE_PREFIX}noexiste', _MISS, 60)
+
+        self.assertIsNone(_tenant_por_subdominio('noexiste'))
+
+    def test_un_valor_irreconocible_en_el_cache_no_tumba_la_peticion(self):
+        """Con una caché COMPARTIDA (Redis), lo escrito por una versión
+        anterior del código sobrevive al despliegue. Que un valor viejo o
+        inesperado cueste una consulta de más es aceptable; que tumbe el
+        sitio, no."""
+        from apps.core.middleware import _TENANT_CACHE_PREFIX, _tenant_por_subdominio
+
+        cache.set(f'{_TENANT_CACHE_PREFIX}basura', object(), 60)
+
+        self.assertIsNone(_tenant_por_subdominio('basura'))
