@@ -29,3 +29,4 @@ packaging==26.2
 setuptools==83.0.0
 sqlparse==0.5.5
 wheel==0.47.0
+redis
