@@ -333,6 +333,15 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 #      el servidor reinicie (o provocar el reinicio) para que el contador
 #      vuelva a cero.
 #
+# Y una TERCERA consecuencia, que no es de seguridad sino de corrección, desde
+# que existe el panel del proveedor: aquí también vive el caché de resolución
+# subdominio -> tenant (``apps/core/middleware.py``). Cuando se suspende o se
+# cancela un gimnasio, ``invalidar_cache_tenant`` borra la entrada del worker
+# QUE ATENDIÓ ESA PETICIÓN y de ningún otro. Con varios workers, el gimnasio
+# suspendido seguiría operando con normalidad en los demás hasta que expire
+# su TTL. Con una caché compartida la invalidación es inmediata y global,
+# que es lo que la operación promete.
+#
 # En resumen: en PRODUCCIÓN, el throttle solo protege de verdad con una
 # caché COMPARTIDA entre todos los workers/réplicas (Redis/Memcached). Si no
 # se define ``REDIS_URL`` (u otra variable equivalente) en el entorno, se cae

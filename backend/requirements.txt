@@ -1,10 +1,31 @@
-asgiref==3.12.1
+# Núcleo
 Django==6.0.7
-django-cors-headers==4.9.0
 djangorestframework==3.17.1
 djangorestframework_simplejwt==5.5.1
-packaging==26.2
 PyJWT==2.13.0
+django-cors-headers==4.9.0
+
+# Configuración por entorno. `config/settings/base.py` no arranca sin esto:
+# lee TODAS las credenciales del entorno, nada está escrito en el código.
+django-environ==0.14.0
+
+# Driver de PostgreSQL. Sin él no hay base de datos: el proyecto no soporta
+# ningún otro motor (usa RLS, tablas particionadas y vistas de PostgreSQL).
+# El extra [binary] trae las ruedas precompiladas y evita tener que compilar
+# libpq en el contenedor.
+psycopg[binary]==3.3.4
+
+# Servidor de producción. El `runserver` de Django no debe usarse fuera de
+# desarrollo (un solo hilo, sin límites, sin cabeceras de proxy).
+gunicorn==26.0.0
+
+# Sirve los estáticos del admin de Django sin necesidad de un nginx delante.
+# Solo se activa en `config/settings/prod.py`.
+whitenoise==6.12.0
+
+# Dependencias transitivas, fijadas para que el despliegue sea reproducible.
+asgiref==3.12.1
+packaging==26.2
 setuptools==83.0.0
 sqlparse==0.5.5
 wheel==0.47.0
