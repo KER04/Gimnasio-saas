@@ -11,7 +11,7 @@ from django.core.exceptions import ImproperlyConfigured
 from .base import *  # noqa: F401,F403
 from .base import env
 
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = env.list('DJANGO_ALLOWED_HOSTS', default=[])
 
