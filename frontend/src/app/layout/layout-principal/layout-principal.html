@@ -1,19 +1,21 @@
-<div class="flex min-h-screen flex-col bg-surface">
-  <app-header />
+<!-- El aside es hermano del CONTENIDO, no hijo de una fila bajo el header:
+     así arranca en el borde superior de la ventana y el header ocupa solo la
+     columna de la derecha, como una barra de trabajo de la sección actual.
+     La marca del gimnasio encabeza el lateral (no el header) porque es lo
+     que identifica a toda la aplicación, no a la pantalla que se está
+     viendo. -->
+<div class="flex min-h-screen bg-surface">
+  <app-aside />
 
-  <!-- `items-stretch` (por defecto en flex) hace que el aside se estire hasta
-       el fondo del contenedor en vez de terminar donde acaba su contenido. -->
-  <div class="flex flex-1">
-    <app-aside />
+  <!-- El pie va DENTRO de esta columna, no debajo de todo: si abarcara
+       también el ancho del aside, lo cortaría antes de llegar al fondo. -->
+  <div class="flex min-w-0 flex-1 flex-col">
+    <app-header />
 
-    <!-- El pie va DENTRO de esta columna, no debajo de todo: si abarcara
-         también el ancho del aside, lo cortaría antes de llegar al fondo. -->
-    <div class="flex min-w-0 flex-1 flex-col">
-      <section class="flex-1 p-4 md:p-8">
-        <router-outlet />
-      </section>
+    <section class="flex-1 p-4 md:p-8">
+      <router-outlet />
+    </section>
 
-      <app-footer />
-    </div>
+    <app-footer />
   </div>
 </div>

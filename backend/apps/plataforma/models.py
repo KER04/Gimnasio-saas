@@ -4,6 +4,7 @@ App plataforma — sección 04 del esquema.
 Tablas del PROVEEDOR del SaaS. No llevan tenant_id: quedan fuera de las
 políticas RLS de tenant (esas se aplican solo a partir de sedes en adelante).
 """
+from django.contrib.auth.hashers import check_password, make_password
 from django.db import models
 from django.db.models import Func
 from django.db.models.functions import Lower
@@ -267,6 +268,37 @@ class UsuarioPlataforma(models.Model):
 
     def __str__(self):
         return self.nombre
+
+    # -- Contraseña -------------------------------------------------------
+    #
+    # NO hereda de ``AbstractBaseUser``: este modelo no es el ``AUTH_USER_MODEL``
+    # del proyecto (lo es ``organizacion.Usuario``) y Django solo admite uno.
+    # Se usan directamente los hashers del framework, que es lo único que
+    # ``AbstractBaseUser`` aportaría aquí -- el resto de su maquinaria
+    # (permisos, sesiones, admin) no aplica al personal del proveedor.
+
+    def set_password(self, password_en_claro):
+        self.password_hash = make_password(password_en_claro)
+
+    def check_password(self, password_en_claro):
+        """Comprueba la contraseña y re-hashea si el algoritmo quedó obsoleto.
+
+        Un ``password_hash`` vacío (fila sembrada a medias) devuelve ``False``
+        sin consultar al hasher: ``check_password`` contra una cadena vacía
+        lanzaría, y una identidad sin contraseña jamás debe poder entrar.
+        """
+        if not self.password_hash:
+            return False
+
+        def _actualizar(nuevo_hash):
+            self.password_hash = nuevo_hash
+            self.save(update_fields=['password_hash'])
+
+        return check_password(password_en_claro, self.password_hash, _actualizar)
+
+    @property
+    def es_administrador(self):
+        return self.rol == self.RolPlataforma.ADMINISTRADOR
 
 
 class Impersonacion(models.Model):

@@ -17,70 +17,25 @@ from rest_framework import serializers
 
 from apps.clientes.models import Cliente
 from apps.core.permissions import usuario_tiene_permiso
-from apps.inventario.models import Producto, StockSede
+from apps.core.serializers import ocultar_campos_de_costo
+from apps.inventario.models import Producto
 from apps.membresias.models import Plan
 from apps.organizacion.models import Sede
 
 from .models import DetalleVenta, Pago, Venta
 from .services import VentaError, registrar_venta
 
-# Campos que solo debe ver quien tenga 'costos.ver'. Se centraliza aquí para
-# no repetir la misma condición en cada serializer que los toque.
-_CAMPOS_SOLO_COSTOS_VER = ('costo', 'costo_unitario')
-
-
-def _ocultar_campos_de_costo(data, request):
-    """Elimina del dict de salida los campos de costo/utilidad si el usuario
-    de ``request`` no tiene el permiso ``costos.ver``. Se usa desde
-    ``to_representation`` de varios serializers de este módulo."""
-    usuario = getattr(request, 'user', None) if request is not None else None
-    if not usuario_tiene_permiso(usuario, 'costos.ver', request=request):
-        for campo in _CAMPOS_SOLO_COSTOS_VER:
-            data.pop(campo, None)
-    return data
+# La ocultación de costos se trasladó a `apps.core.serializers`: la aplican
+# también los serializers de inventario, y mantener dos copias de la misma
+# condición acabaría filtrando un costo por el lado que se olvidase
+# actualizar. Se conserva el nombre privado como alias para no tocar los
+# `to_representation` que ya lo llaman.
+_ocultar_campos_de_costo = ocultar_campos_de_costo
 
 
 # ---------------------------------------------------------------------------
 # Endpoints de apoyo del POS (Parte D): productos, planes, clientes
 # ---------------------------------------------------------------------------
-
-class ProductoSerializer(serializers.ModelSerializer):
-    """Lectura de catálogo para el buscador del POS. ``stock`` se calcula
-    para la sede indicada por la vista vía ``context['sede_id']`` (query
-    param ``sede_id``); si no se indicó ninguna sede, se omite (``None``)."""
-
-    stock = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Producto
-        fields = (
-            'id', 'nombre', 'marca', 'presentacion', 'codigo_barras',
-            'categoria_producto', 'precio_venta', 'costo', 'stock_minimo',
-            'activo', 'stock',
-        )
-        read_only_fields = fields
-
-    def get_stock(self, obj):
-        sede_id = self.context.get('sede_id')
-        if not sede_id:
-            return None
-        stock = StockSede.objects.filter(producto=obj, sede_id=sede_id).first()
-        return str(stock.cantidad) if stock is not None else '0'
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        return _ocultar_campos_de_costo(data, self.context.get('request'))
-
-
-class PlanSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Plan
-        fields = (
-            'id', 'nombre', 'tipo', 'duracion_dias', 'precio',
-            'requiere_entrenador', 'sede', 'activo',
-        )
-        read_only_fields = fields
-
 
 # ---------------------------------------------------------------------------
 # Lectura de ventas
@@ -127,16 +82,29 @@ class VentaSerializer(serializers.ModelSerializer):
     detalles = DetalleVentaSerializer(many=True, read_only=True)
     pagos = PagoSerializer(many=True, read_only=True)
     saldo = serializers.SerializerMethodField()
+    # Nombres legibles para no obligar a resolver un id por fila del listado
+    # (mismo criterio que `AsistenciaSerializer` y `MovimientoInventarioSerializer`).
+    cliente_nombre = serializers.SerializerMethodField()
+    usuario_nombre = serializers.SerializerMethodField()
 
     class Meta:
         model = Venta
         fields = (
-            'id', 'sede', 'cliente', 'usuario', 'consecutivo', 'fecha_hora',
+            'id', 'sede', 'cliente', 'cliente_nombre', 'usuario', 'usuario_nombre',
+            'consecutivo', 'fecha_hora',
             'subtotal', 'descuento', 'motivo_descuento', 'total', 'estado',
             'anulada_por', 'motivo_anulacion', 'anulada_en',
             'detalles', 'pagos', 'saldo',
         )
         read_only_fields = fields
+
+    def get_cliente_nombre(self, obj):
+        # `None` es un dato, no un hueco: una venta de mostrador pagada al
+        # contado no identifica a nadie.
+        return obj.cliente.nombre if obj.cliente_id else None
+
+    def get_usuario_nombre(self, obj):
+        return obj.usuario.nombre if obj.usuario_id else None
 
     def get_saldo(self, obj):
         total_pagado = sum(

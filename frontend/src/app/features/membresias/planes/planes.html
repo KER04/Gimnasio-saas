@@ -1,0 +1,317 @@
+<div class="flex flex-col gap-5">
+  <!-- Misma cabecera de sección que "Gestión de clientes": bloque primario
+       sólido con texto invertido. -->
+  <div class="rounded-xl bg-primary px-5 py-5 sm:px-6 flex flex-wrap items-center justify-between gap-4">
+    <div class="min-w-0">
+      <h1 class="text-headline-lg-mobile sm:text-headline-lg text-on-primary">Gestión de Membresías</h1>
+      <p class="mt-1 text-body-md text-primary-fixed">
+        Administra los planes y tarifas disponibles para los socios.
+      </p>
+    </div>
+    @if (puedeGestionar()) {
+      <button type="button" class="btn-inverted shrink-0" (click)="abrirCreacion()">
+        <span class="material-symbols-outlined" aria-hidden="true">add</span>
+        Nueva Membresía
+      </button>
+    }
+  </div>
+
+  @if (error()) {
+    <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">
+      {{ error() }}
+    </p>
+  }
+
+  <div [class]="panelAbierto() ? 'grid gap-5 lg:grid-cols-[1fr_360px]' : 'grid gap-5'">
+    <div class="flex flex-col gap-5 min-w-0">
+      @if (cargando()) {
+        <div class="card-base p-8 flex items-center justify-center text-on-surface-variant text-sm">
+          Cargando planes…
+        </div>
+      } @else if (planes().length === 0) {
+        <div class="card-base p-8 flex flex-col items-center justify-center text-center gap-1">
+          <p class="font-medium text-on-surface">Aún no hay planes registrados</p>
+          <p class="text-sm text-on-surface-variant">Crea el primero con el botón "Nueva Membresía".</p>
+        </div>
+      } @else {
+        <div class="card-base overflow-hidden flex flex-col">
+          <!-- Tabla: solo en escritorio (md+). A 360px se ve la lista de tarjetas de abajo. -->
+          <div class="hidden md:block overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-surface-container-highest/50 text-left">
+                  <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Plan</th>
+                  <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Precio</th>
+                  <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Duración</th>
+                  <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Estado</th>
+                  <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Detalles</th>
+                  <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-outline-variant">
+                @for (plan of planes(); track plan.id) {
+                  <tr [class]="planEditando()?.id === plan.id ? 'bg-primary-container/20' : ''">
+                    <td class="px-4 py-3">
+                      <div class="flex items-center gap-2.5">
+                        <span
+                          class="material-symbols-outlined shrink-0 text-primary"
+                          aria-hidden="true"
+                        >{{ iconoTipo(plan.tipo) }}</span>
+                        <div class="min-w-0">
+                          <p class="font-medium text-on-surface">{{ plan.nombre }}</p>
+                          <p class="text-xs text-on-surface-variant">ID: #{{ plan.id }}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="px-4 py-3 font-semibold text-primary">{{ precioFormateado(plan) }}</td>
+                    <td class="px-4 py-3">
+                      <p class="text-on-surface">{{ etiquetaTipo(plan.tipo) }}</p>
+                      @if (plan.duracion_dias !== null) {
+                        <p class="text-xs text-on-surface-variant">{{ plan.duracion_dias }} días</p>
+                      }
+                    </td>
+                    <td class="px-4 py-3">
+                      <span [class]="plan.activo ? 'badge-success' : 'badge-danger'">
+                        {{ plan.activo ? 'Activo' : 'Inactivo' }}
+                      </span>
+                    </td>
+                    <td class="px-4 py-3">
+                      <div class="flex flex-wrap items-center gap-1.5">
+                        @if (plan.requiere_entrenador) {
+                          <span class="badge-neutral">Con entrenador</span>
+                        }
+                        <span class="badge-neutral">{{ nombreSede(plan.sede) }}</span>
+                      </div>
+                    </td>
+                    <td class="px-4 py-3">
+                      <div class="flex items-center justify-end gap-1.5">
+                        @if (puedeGestionar()) {
+                          <button
+                            type="button"
+                            class="btn-icon"
+                            [attr.aria-label]="'Editar plan ' + plan.nombre"
+                            title="Editar plan"
+                            (click)="abrirEdicion(plan)"
+                          >
+                            <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                          </button>
+                          @if (plan.activo) {
+                            <button
+                              type="button"
+                              class="btn-icon"
+                              [attr.aria-label]="'Dar de baja el plan ' + plan.nombre"
+                              title="Dar de baja"
+                              [disabled]="eliminandoId() === plan.id"
+                              (click)="darDeBaja(plan)"
+                            >
+                              <span class="material-symbols-outlined" aria-hidden="true">block</span>
+                            </button>
+                          } @else {
+                            <button
+                              type="button"
+                              class="btn-icon text-primary"
+                              [attr.aria-label]="'Reactivar el plan ' + plan.nombre"
+                              title="Reactivar"
+                              [disabled]="eliminandoId() === plan.id"
+                              (click)="reactivar(plan)"
+                            >
+                              <span class="material-symbols-outlined" aria-hidden="true">restart_alt</span>
+                            </button>
+                          }
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Tarjetas: por debajo de md, incluida la vista de 360px (RF-23, sin scroll horizontal). -->
+          <div class="md:hidden flex flex-col divide-y divide-outline-variant">
+            @for (plan of planes(); track plan.id) {
+              <div class="p-4 flex flex-col gap-3" [class]="planEditando()?.id === plan.id ? 'bg-primary-container/20' : ''">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="flex min-w-0 items-center gap-2.5">
+                    <span
+                      class="material-symbols-outlined shrink-0 text-primary"
+                      aria-hidden="true"
+                    >{{ iconoTipo(plan.tipo) }}</span>
+                    <div class="min-w-0">
+                      <p class="font-medium text-on-surface truncate">{{ plan.nombre }}</p>
+                      <p class="text-xs text-on-surface-variant">ID: #{{ plan.id }}</p>
+                    </div>
+                  </div>
+                  <p class="font-semibold text-primary shrink-0">{{ precioFormateado(plan) }}</p>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span [class]="plan.activo ? 'badge-success' : 'badge-danger'">
+                    {{ plan.activo ? 'Activo' : 'Inactivo' }}
+                  </span>
+                  <span class="badge-neutral">{{ etiquetaTipo(plan.tipo) }}</span>
+                  @if (plan.duracion_dias !== null) {
+                    <span class="text-xs text-on-surface-variant">{{ plan.duracion_dias }} días</span>
+                  }
+                  @if (plan.requiere_entrenador) {
+                    <span class="badge-neutral">Con entrenador</span>
+                  }
+                  <span class="badge-neutral">{{ nombreSede(plan.sede) }}</span>
+                </div>
+
+                @if (puedeGestionar()) {
+                  <div class="flex items-center justify-end gap-1.5">
+                    <button
+                      type="button"
+                      class="btn-icon"
+                      [attr.aria-label]="'Editar plan ' + plan.nombre"
+                      (click)="abrirEdicion(plan)"
+                    >
+                      <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                    </button>
+                    @if (plan.activo) {
+                      <button
+                        type="button"
+                        class="btn-icon"
+                        [attr.aria-label]="'Dar de baja el plan ' + plan.nombre"
+                        [disabled]="eliminandoId() === plan.id"
+                        (click)="darDeBaja(plan)"
+                      >
+                        <span class="material-symbols-outlined" aria-hidden="true">block</span>
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        class="btn-icon text-primary"
+                        [attr.aria-label]="'Reactivar el plan ' + plan.nombre"
+                        [disabled]="eliminandoId() === plan.id"
+                        (click)="reactivar(plan)"
+                      >
+                        <span class="material-symbols-outlined" aria-hidden="true">restart_alt</span>
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      }
+    </div>
+
+    @if (panelAbierto()) {
+      <!-- `order-first` por debajo de lg: el panel es el SEGUNDO hijo del grid,
+           así que apilado quedaría detrás de toda la lista y el formulario
+           recién abierto aparecería fuera de pantalla. En lg+ vuelve a su
+           sitio, la columna derecha. -->
+      <div class="card-base p-6 h-fit order-first lg:order-none lg:sticky lg:top-4 flex flex-col gap-4">
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <h2 class="text-headline-md text-on-surface">{{ titulo() }}</h2>
+            @if (planEditando(); as plan) {
+              <p class="text-xs text-on-surface-variant">ID: #{{ plan.id }}</p>
+            }
+          </div>
+          <button type="button" class="btn-icon" aria-label="Cerrar panel" (click)="cerrarPanel()">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          </button>
+        </div>
+
+        <form class="flex flex-col gap-4" [formGroup]="form" (ngSubmit)="enviar()" novalidate>
+          <div>
+            <label for="nombre" class="block text-sm font-medium text-on-surface mb-1">Nombre del plan</label>
+            <input id="nombre" type="text" class="field-input" formControlName="nombre" />
+            @if (form.controls.nombre.invalid && form.controls.nombre.touched) {
+              <p class="mt-1 text-xs text-danger-text">El nombre es obligatorio.</p>
+            }
+            @if (errorDe('nombre'); as err) {
+              <p class="mt-1 text-xs text-danger-text">{{ err }}</p>
+            }
+          </div>
+
+          <div>
+            <label for="precio" class="block text-sm font-medium text-on-surface mb-1">Precio (COP)</label>
+            <!-- `type="text"` a propósito, NO `type="number"`: en un campo
+                 numérico la rueda del ratón y las flechas cambian el importe
+                 en silencio (un 5000 tecleado acaba en 4998 al hacer scroll).
+                 `inputmode="decimal"` deja el teclado numérico en móvil. -->
+            <input
+              id="precio"
+              type="text"
+              inputmode="decimal"
+              autocomplete="off"
+              placeholder="50.000"
+              class="field-input"
+              formControlName="precio"
+            />
+            @if (form.controls.precio.valid && precioInterpretado(); as vistaPrevia) {
+              <p class="mt-1 text-xs text-on-surface-variant">Se guardará como {{ vistaPrevia }}</p>
+            }
+            @if (form.controls.precio.invalid && form.controls.precio.touched) {
+              <p class="mt-1 text-xs text-danger-text">
+                Indica un importe válido: solo cifras, con «.» para los miles y «,» para los centavos.
+              </p>
+            }
+            @if (errorDe('precio'); as err) {
+              <p class="mt-1 text-xs text-danger-text">{{ err }}</p>
+            }
+          </div>
+
+          <div>
+            <label for="tipo" class="block text-sm font-medium text-on-surface mb-1">Frecuencia</label>
+            <select id="tipo" class="field-input" formControlName="tipo">
+              <option value="mensual">Mensual</option>
+              <option value="quincenal">Quincenal</option>
+              <option value="por_sesion">Por sesión</option>
+            </select>
+          </div>
+
+          @if (form.controls.tipo.value !== 'por_sesion') {
+            <div>
+              <label for="duracion_dias" class="block text-sm font-medium text-on-surface mb-1">Duración (días)</label>
+              <input id="duracion_dias" type="number" min="1" class="field-input" formControlName="duracion_dias" />
+              @if (form.controls.duracion_dias.invalid && form.controls.duracion_dias.touched) {
+                <p class="mt-1 text-xs text-danger-text">Indica una duración mayor que cero.</p>
+              }
+              @if (errorDe('duracion_dias'); as err) {
+                <p class="mt-1 text-xs text-danger-text">{{ err }}</p>
+              }
+            </div>
+          } @else {
+            <p class="text-xs text-on-surface-variant -mt-1">
+              Los planes por sesión no tienen vigencia: se venden sesión a sesión.
+            </p>
+          }
+
+          <div>
+            <label for="sede" class="block text-sm font-medium text-on-surface mb-1">Sede</label>
+            <select id="sede" class="field-input" formControlName="sede">
+              <option value="">Todas las sedes</option>
+              @for (sede of sedes(); track sede.id) {
+                <option [value]="sede.id">{{ sede.nombre }}</option>
+              }
+            </select>
+          </div>
+
+          <label class="flex items-center gap-2.5 text-sm text-on-surface">
+            <input type="checkbox" class="size-4" formControlName="requiere_entrenador" />
+            Requiere entrenador asignado
+          </label>
+
+          <label class="flex items-center gap-2.5 text-sm text-on-surface">
+            <input type="checkbox" class="size-4" formControlName="activo" />
+            Plan activo (disponible para la venta)
+          </label>
+
+          <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
+            <button type="button" class="btn-outlined w-full sm:w-auto" (click)="cerrarPanel()">Cancelar</button>
+            <button type="submit" class="btn-primary w-full sm:w-auto" [disabled]="guardando()">
+              <span class="material-symbols-outlined" aria-hidden="true">save</span>
+              {{ guardando() ? 'Guardando…' : (planEditando() ? 'Guardar Cambios' : 'Crear Plan') }}
+            </button>
+          </div>
+        </form>
+      </div>
+    }
+  </div>
+</div>

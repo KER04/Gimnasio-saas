@@ -19,3 +19,17 @@ export interface Plan {
   sede: number | null;
   activo: boolean;
 }
+
+/** Payload de escritura de un plan (`POST`/`PATCH /api/planes/`). */
+export interface PlanFormulario {
+  nombre: string;
+  tipo: TipoPlan;
+  /** `null` obligatorio cuando `tipo` es `'por_sesion'` (ck_planes_duracion). */
+  duracion_dias: number | null;
+  /** Texto, igual que en `Plan.precio`: nunca se opera como `number`. */
+  precio: string;
+  requiere_entrenador: boolean;
+  /** `null` = plan disponible en todas las sedes del gimnasio. */
+  sede: number | null;
+  activo: boolean;
+}

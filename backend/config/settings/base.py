@@ -113,9 +113,23 @@ MIDDLEWARE = [
 # credenciales inválidas (falla cerrado), sin necesitar una exención.
 TENANT_EXEMPT_PATHS = [
     '/static/',
-    '/api/auth/register/',
+    # '/api/auth/register/' SALIÓ de esta lista al dejar de ser AllowAny.
+    # Ahora exige `config.usuarios`, y autenticar significa resolver al
+    # usuario desde `usuarios`, tabla con RLS FORCE: si la ruta siguiera
+    # exenta, el middleware no abriría tenant_context y esa consulta vería
+    # cero filas -- 401 sistemático, aun con un token perfectamente válido.
+    # Sin exención, el tenant sale del propio JWT y la transacción cubre
+    # también la autenticación.
     '/api/auth/refresh/',
     '/api/auth/logout/',
+    # Panel del PROVEEDOR: no pertenece a ningún gimnasio, así que no hay
+    # tenant que resolver. Exentarlo no relaja nada -- al contrario: sin
+    # `app.tenant_id` fijado, cualquier consulta accidental a una tabla de
+    # negocio desde estas vistas devuelve CERO filas (RLS falla cerrado) en
+    # lugar de mezclar datos de gimnasios distintos. La autenticación de
+    # estas rutas es la suya propia (apps/plataforma/auth.py), que no acepta
+    # tokens de gimnasio.
+    '/api/plataforma/',
 ]
 
 ROOT_URLCONF = 'config.urls'

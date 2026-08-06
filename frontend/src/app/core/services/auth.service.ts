@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, catchError, finalize, of, shareReplay, switchMap, tap, throwError } from 'rxjs';
+import { Observable, catchError, finalize, map, of, shareReplay, switchMap, tap, throwError } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { TenantService } from '../tenant/tenant.service';
@@ -130,6 +130,26 @@ export class AuthService {
 
     this.refrescoEnVuelo = peticion$;
     return peticion$;
+  }
+
+  /**
+   * Cambia la contraseña propia.
+   *
+   * El backend invalida TODAS las sesiones (incluida esta) y devuelve una
+   * pareja de tokens nueva. Hay que guardarla o la siguiente petición se
+   * encontraría con un refresh en la lista negra y cerraría la sesión de
+   * quien acaba de cambiar su contraseña.
+   */
+  cambiarPassword(passwordActual: string, passwordNueva: string): Observable<void> {
+    return this.http
+      .post<{ access: string; refresh: string }>(`${environment.apiUrl}/auth/cambiar-password/`, {
+        password_actual: passwordActual,
+        password_nueva: passwordNueva,
+      })
+      .pipe(
+        tap((respuesta) => this.guardarTokens(respuesta.access, respuesta.refresh)),
+        map(() => undefined),
+      );
   }
 
   obtenerAccessToken(): string | null {

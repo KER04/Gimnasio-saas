@@ -1,11 +1,18 @@
-<div class="p-4 sm:p-6 max-w-3xl mx-auto flex flex-col gap-5">
-  <div>
-    <a routerLink="/clientes" class="text-label-sm uppercase tracking-wider text-on-surface-variant hover:text-on-surface inline-flex items-center gap-1">
+<div class="flex flex-col gap-5">
+  <!-- Misma cabecera de sección que los listados: bloque primario sólido con
+       texto invertido. La miga de pan va DENTRO del bloque, en un tono claro
+       sobre el morado, para que la vuelta atrás siga siendo lo primero que
+       se lee. -->
+  <div class="rounded-xl bg-primary px-5 py-5 sm:px-6">
+    <a
+      routerLink="/clientes"
+      class="inline-flex items-center gap-1 text-label-sm uppercase tracking-wider text-primary-fixed transition-colors hover:text-on-primary"
+    >
       <span class="material-symbols-outlined text-base" aria-hidden="true">arrow_back</span>
       Gestión de clientes
     </a>
-    <h1 class="text-headline-lg-mobile sm:text-headline-lg text-on-surface mt-1">{{ titulo() }}</h1>
-    <p class="mt-1 text-body-md text-on-surface-variant">
+    <h1 class="text-headline-lg-mobile sm:text-headline-lg text-on-primary mt-1">{{ titulo() }}</h1>
+    <p class="mt-1 text-body-md text-primary-fixed">
       @if (esEdicion) {
         Actualiza los datos personales del cliente.
       } @else {
@@ -20,6 +27,14 @@
     </div>
   } @else {
     <form class="flex flex-col gap-5" [formGroup]="form" (ngSubmit)="enviar()" novalidate>
+      <!-- Dos columnas en pantallas anchas: datos del cliente a la izquierda,
+           membresía y cobro a la derecha. En EDICIÓN no se aplica la rejilla:
+           solo existe la sección de datos personales y una segunda columna
+           vacía dejaría media pantalla en blanco.
+           `xl:items-start` evita que las tarjetas de una columna se estiren
+           a la altura de la otra. -->
+      <div [class]="esEdicion ? 'flex flex-col gap-5' : 'grid gap-5 xl:grid-cols-2 xl:items-start'">
+      <div class="flex flex-col gap-5">
       <!-- Sección 1: información personal -->
       <section class="card-base p-5 sm:p-6 flex flex-col gap-4">
         <div class="flex items-center gap-3">
@@ -103,11 +118,50 @@
         </div>
       </section>
 
+      <!-- Sección 4: autorizaciones (Ley 1581), solo al crear. Vive en la
+           columna izquierda, con los datos del cliente: son consentimientos
+           SUYOS, no parte del cobro. -->
       @if (!esEdicion) {
+        <section class="card-base p-5 sm:p-6 flex flex-col gap-4">
+          <div class="flex items-center gap-3">
+            <span class="flex items-center justify-center size-9 rounded-lg bg-surface-container-high text-on-surface-variant" aria-hidden="true">
+              <span class="material-symbols-outlined">verified_user</span>
+            </span>
+            <h2 class="text-headline-md text-on-surface">Autorizaciones</h2>
+          </div>
+
+          <p class="text-sm text-on-surface-variant">
+            Son autorizaciones legales del cliente (Ley 1581 de 2012), no preferencias de esta
+            aplicación. Son independientes entre sí: puede aceptar una y negar la otra.
+          </p>
+
+          <label class="flex items-start gap-2.5 text-sm text-on-surface">
+            <input type="checkbox" class="mt-0.5 size-4" formControlName="autoriza_tratamiento_datos" />
+            <span>El cliente autoriza el tratamiento de sus datos personales.</span>
+          </label>
+
+          <label class="flex items-start gap-2.5 text-sm text-on-surface">
+            <input type="checkbox" class="mt-0.5 size-4" formControlName="autoriza_biometria" />
+            <span>
+              El cliente autoriza además el uso de sus datos biométricos.
+              <span class="block text-xs text-on-surface-variant">
+                Negarla no le impide ingresar al gimnasio.
+              </span>
+            </span>
+          </label>
+        </section>
+      }
+      </div>
+
+      @if (!esEdicion) {
+        <div class="flex flex-col gap-5">
         <!-- Sección 2: detalles de membresía -->
         <section class="card-base p-5 sm:p-6 flex flex-col gap-4">
           <div class="flex items-center gap-3">
-            <span class="flex items-center justify-center size-9 rounded-lg bg-tertiary-container text-on-tertiary-container" aria-hidden="true">
+            <!-- Mismo morado que el resto de secciones: el `tertiary` que
+                 había aquí es dorado y era el único elemento de la pantalla
+                 fuera de la paleta primaria. -->
+            <span class="flex items-center justify-center size-9 rounded-lg bg-primary-container text-on-primary-container" aria-hidden="true">
               <span class="material-symbols-outlined">card_membership</span>
             </span>
             <h2 class="text-headline-md text-on-surface">Detalles de membresía</h2>
@@ -143,16 +197,34 @@
           </div>
 
           @if (planSeleccionado()) {
-            <div>
-              <label for="fechaInicio" class="block text-sm font-medium text-on-surface mb-1">Fecha de inicio</label>
-              <input id="fechaInicio" type="date" class="field-input max-w-xs" formControlName="fechaInicio" />
+            <div class="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label for="fechaInicio" class="block text-sm font-medium text-on-surface mb-1">Fecha de inicio</label>
+                <input id="fechaInicio" type="date" class="field-input" formControlName="fechaInicio" />
+              </div>
+
+              <div>
+                <span class="block text-sm font-medium text-on-surface mb-1">Termina el</span>
+                <!-- No es un campo: el vencimiento lo calcula el servidor. Se
+                     muestra con el mismo alto que el campo de al lado para que
+                     la pareja "empieza / termina" se lea de un vistazo. -->
+                <p
+                  class="flex min-h-11 items-center rounded-[6px] bg-surface-container px-3.5 text-[0.9375rem] text-on-surface"
+                >
+                  {{ fechaFinPrevista() ?? 'Sin vencimiento' }}
+                </p>
+              </div>
             </div>
 
             <div class="rounded-[10px] bg-surface-container p-3 flex items-start gap-2.5 text-sm text-on-surface-variant">
               <span class="material-symbols-outlined shrink-0" aria-hidden="true">info</span>
               <p>
-                La membresía empieza en la fecha indicada; su vencimiento se calcula automáticamente
-                con la duración del plan elegido.
+                @if (fechaFinPrevista()) {
+                  La membresía cubre desde la fecha de inicio hasta el vencimiento mostrado
+                  ({{ planSeleccionado()?.duracion_dias }} días). La fecha definitiva la fija el servidor al guardar.
+                } @else {
+                  Los planes por sesión no tienen vigencia: se venden sesión a sesión y no generan membresía.
+                }
               </p>
             </div>
           }
@@ -172,6 +244,39 @@
               <span class="text-sm text-on-surface-variant">Total a cobrar</span>
               <span class="text-headline-md text-on-surface">{{ formatearPrecio(plan.precio) }}</span>
             </div>
+
+            <div>
+              <label for="montoInicial" class="block text-sm font-medium text-on-surface mb-1">Paga hoy (COP)</label>
+              <!-- `type="text"`, NO `type="number"`: ver precio.util.ts. -->
+              <input
+                id="montoInicial"
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+                placeholder="0"
+                class="field-input"
+                formControlName="montoInicial"
+              />
+              @if (montoInicialExcedido()) {
+                <p class="mt-1 text-xs text-danger-text">No puede superar el total a cobrar.</p>
+              } @else if (form.controls.montoInicial.invalid && form.controls.montoInicial.touched) {
+                <p class="mt-1 text-xs text-danger-text">Indica un importe válido (0 si no paga nada hoy).</p>
+              } @else {
+                <p class="mt-1 text-xs text-on-surface-variant">
+                  Puede pagar menos que el total, o cero: lo que falte queda como saldo y se cobra por abonos.
+                </p>
+              }
+            </div>
+
+            @if (saldoTrasAlta(); as saldo) {
+              <div class="flex items-center justify-between rounded-[10px] bg-surface-container px-4 py-3 text-sm">
+                <span class="text-on-surface-variant">Queda a deber</span>
+                <span
+                  class="font-semibold"
+                  [class]="saldo === '0.00' ? 'text-success-text' : 'text-warning-text'"
+                >{{ formatearPrecio(saldo) }}</span>
+              </div>
+            }
 
             <div class="grid grid-cols-2 gap-3">
               <button
@@ -194,36 +299,9 @@
           </section>
         }
 
-        <!-- Sección 4: autorizaciones (Ley 1581), solo al crear -->
-        <section class="card-base p-5 sm:p-6 flex flex-col gap-4">
-          <div class="flex items-center gap-3">
-            <span class="flex items-center justify-center size-9 rounded-lg bg-surface-container-high text-on-surface-variant" aria-hidden="true">
-              <span class="material-symbols-outlined">verified_user</span>
-            </span>
-            <h2 class="text-headline-md text-on-surface">Autorizaciones</h2>
-          </div>
-
-          <p class="text-sm text-on-surface-variant">
-            Son autorizaciones legales del cliente (Ley 1581 de 2012), no preferencias de esta
-            aplicación. Son independientes entre sí: puede aceptar una y negar la otra.
-          </p>
-
-          <label class="flex items-start gap-2.5 text-sm text-on-surface">
-            <input type="checkbox" class="mt-0.5 size-4" formControlName="autoriza_tratamiento_datos" />
-            <span>El cliente autoriza el tratamiento de sus datos personales.</span>
-          </label>
-
-          <label class="flex items-start gap-2.5 text-sm text-on-surface">
-            <input type="checkbox" class="mt-0.5 size-4" formControlName="autoriza_biometria" />
-            <span>
-              El cliente autoriza además el uso de sus datos biométricos.
-              <span class="block text-xs text-on-surface-variant">
-                Negarla no le impide ingresar al gimnasio.
-              </span>
-            </span>
-          </label>
-        </section>
+        </div>
       }
+      </div>
 
       @if (errorGeneral()) {
         <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">

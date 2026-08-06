@@ -5,22 +5,16 @@ lógica de negocio: la escritura (crear venta, anular, abonar) delega por
 completo en ``apps.ventas.services``; estas vistas solo traducen HTTP <->
 Python y devuelven errores de negocio como 400 (nunca 500).
 """
-from django.db.models import Q
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 
 from apps.core.permissions import TienePermiso
-from apps.inventario.models import Producto
-from apps.membresias.models import Plan
 
 from .models import Venta
 from .serializers import (
     AbonoInputSerializer,
     AnularVentaInputSerializer,
-    PlanSerializer,
-    ProductoSerializer,
     VentaCreateSerializer,
     VentaSerializer,
 )
@@ -40,35 +34,11 @@ from .services import VentaError, anular_venta, registrar_abono
 # clientes duplicados.
 # ---------------------------------------------------------------------------
 
-class ProductoListView(ListAPIView):
-    """``GET /api/productos/?buscar=<texto>&sede_id=<id>`` (``inventario.ver``)."""
-
-    serializer_class = ProductoSerializer
-    permission_classes = [TienePermiso]
-    permiso_requerido = 'inventario.ver'
-
-    def get_queryset(self):
-        qs = Producto.objects.filter(activo=True).select_related('categoria_producto')
-        buscar = self.request.query_params.get('buscar')
-        if buscar:
-            qs = qs.filter(Q(nombre__icontains=buscar) | Q(codigo_barras__icontains=buscar))
-        return qs.order_by('nombre')
-
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context['sede_id'] = self.request.query_params.get('sede_id')
-        return context
-
-
-class PlanListView(ListAPIView):
-    """``GET /api/planes/`` (``membresias.gestionar``)."""
-
-    serializer_class = PlanSerializer
-    permission_classes = [TienePermiso]
-    permiso_requerido = 'membresias.gestionar'
-
-    def get_queryset(self):
-        return Plan.objects.filter(activo=True).order_by('nombre')
+# ``/api/productos/`` TAMPOCO se sirve ya desde aquí: se trasladó a
+# ``apps.inventario`` al convertirse de listado de solo lectura en CRUD
+# completo, junto al modelo ``Producto``. Sigue en la misma URL, con el mismo
+# parámetro ``sede_id`` y el mismo permiso de lectura (``inventario.ver``):
+# el buscador del POS no nota el cambio.
 
 
 # ---------------------------------------------------------------------------

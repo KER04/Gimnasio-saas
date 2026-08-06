@@ -254,6 +254,107 @@ class ClienteBorradoLogicoTestCase(TestCase):
             from apps.ventas.models import Venta
             self.assertTrue(Venta.objects.filter(pk=datos['venta'].id, cliente_id=datos['cliente'].id).exists())
 
+    def test_el_eliminado_se_ve_con_el_filtro_y_se_puede_restaurar(self):
+        """El borrado lógico tiene que ser REVERSIBLE.
+
+        Antes no lo era: la fila seguía en la base de datos pero ningún
+        endpoint volvía a devolverla, así que un clic de más en "Eliminar"
+        solo se deshacía con un UPDATE a mano.
+        """
+        datos = self.datos
+        headers = _auth_headers(datos['usuario_admin'], 'cli-borrado')
+        url = f'/api/clientes/{datos["cliente"].id}/'
+
+        self.assertEqual(self.client.delete(url, **headers).status_code, 204)
+
+        # `?eliminados=incluir` lo devuelve con `eliminado_en` puesto: es lo
+        # único que distingue una fila eliminada de una viva en el listado.
+        mezclado = self.client.get('/api/clientes/', {'eliminados': 'incluir'}, **headers)
+        self.assertEqual(mezclado.status_code, 200, mezclado.content)
+        filas = {c['id']: c['eliminado_en'] for c in mezclado.json()['results']}
+        self.assertIn(datos['cliente'].id, filas)
+        self.assertIsNotNone(filas[datos['cliente'].id])
+
+        respuesta = self.client.post(f'{url}restaurar/', **headers)
+        self.assertEqual(respuesta.status_code, 200, respuesta.content)
+        self.assertIsNone(respuesta.json()['eliminado_en'])
+
+        # Y vuelve a comportarse como un cliente normal: detalle y listado.
+        self.assertEqual(self.client.get(url, **headers).status_code, 200)
+        listado = self.client.get('/api/clientes/', **headers)
+        self.assertIn(datos['cliente'].id, [c['id'] for c in listado.json()['results']])
+
+    def test_el_filtro_eliminados_acota_las_tres_vistas(self):
+        """Los tres valores del filtro, incluido el defecto. Un valor
+        desconocido NO da 400: cae en el comportamiento por defecto, porque
+        romper el listado entero por una cadena mal escrita es peor que
+        enseñar de menos."""
+        datos = self.datos
+        headers = _auth_headers(datos['usuario_admin'], 'cli-borrado')
+        eliminado = datos['cliente'].id
+
+        vivo = self.client.post(
+            '/api/clientes/',
+            {
+                'nombre': 'Cliente Vivo', 'cedula': 'BOR-VIVO', 'telefono': '3001112233',
+                'direccion': 'Calle 1', 'sede_origen': datos['sede'].id,
+            },
+            content_type='application/json', **headers,
+        )
+        self.assertEqual(vivo.status_code, 201, vivo.content)
+        vivo_id = vivo.json()['id']
+
+        self.assertEqual(self.client.delete(f'/api/clientes/{eliminado}/', **headers).status_code, 204)
+
+        def ids(**params):
+            return {c['id'] for c in self.client.get('/api/clientes/', params, **headers).json()['results']}
+
+        self.assertEqual(ids(), {vivo_id})
+        self.assertEqual(ids(eliminados='excluir'), {vivo_id})
+        self.assertEqual(ids(eliminados='solo'), {eliminado})
+        self.assertEqual(ids(eliminados='incluir'), {vivo_id, eliminado})
+        self.assertEqual(ids(eliminados='cualquier-cosa'), {vivo_id})
+
+    def test_restaurar_es_idempotente(self):
+        """Restaurar un cliente que no estaba eliminado no es un error: el
+        estado final es el que se pedía. Repetirlo tampoco cambia nada."""
+        datos = self.datos
+        headers = _auth_headers(datos['usuario_admin'], 'cli-borrado')
+        url = f'/api/clientes/{datos["cliente"].id}/restaurar/'
+
+        for _ in range(2):
+            respuesta = self.client.post(url, **headers)
+            self.assertEqual(respuesta.status_code, 200, respuesta.content)
+            self.assertIsNone(respuesta.json()['eliminado_en'])
+
+    def test_el_detalle_de_un_eliminado_sigue_dando_404(self):
+        """`incluir_eliminados` es SOLO del listado. Un cliente eliminado no
+        se consulta ni se edita: primero se restaura. Si el detalle lo
+        devolviera, se podría seguir facturando a un cliente dado de baja."""
+        datos = self.datos
+        headers = _auth_headers(datos['usuario_admin'], 'cli-borrado')
+        url = f'/api/clientes/{datos["cliente"].id}/'
+
+        self.assertEqual(self.client.delete(url, **headers).status_code, 204)
+        self.assertEqual(self.client.get(url, **headers).status_code, 404)
+        self.assertEqual(
+            self.client.patch(url, {'telefono': '3000000000'}, content_type='application/json', **headers).status_code,
+            404,
+        )
+
+    def test_restaurar_exige_permiso_de_gestion(self):
+        """Ver clientes no basta para deshacer un borrado, igual que no basta
+        para hacerlo."""
+        datos = self.datos
+        headers_admin = _auth_headers(datos['usuario_admin'], 'cli-borrado')
+        self.assertEqual(
+            self.client.delete(f'/api/clientes/{datos["cliente"].id}/', **headers_admin).status_code, 204,
+        )
+
+        headers_recep = _auth_headers(datos['usuario_recepcion'], 'cli-borrado')
+        respuesta = self.client.post(f'/api/clientes/{datos["cliente"].id}/restaurar/', **headers_recep)
+        self.assertEqual(respuesta.status_code, 403, respuesta.content)
+
 
 @override_settings(ALLOWED_HOSTS=_ALLOWED_HOSTS_PRUEBA)
 class ClienteMembresiasTestCase(TestCase):

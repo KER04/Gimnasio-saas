@@ -1,75 +1,164 @@
-<div class="min-h-screen w-full flex items-center justify-center bg-surface-page px-4 py-10">
-  <div class="w-full max-w-sm card-base p-6 sm:p-8">
-    <h1 class="font-display text-2xl font-bold text-text-principal text-center">
-      Iniciar sesión
-    </h1>
-    <p class="mt-1 text-sm text-neutral-500 text-center">
-      Entra con tus credenciales del gimnasio
+<!-- Dos columnas en escritorio; en móvil solo el formulario, con una cabecera
+     compacta. El panel de marca es acompañamiento: quien entra desde el móvil
+     del mostrador quiere teclear y pasar, no leer argumentos de venta. -->
+<div class="min-h-screen w-full grid lg:grid-cols-[1.1fr_1fr] bg-surface">
+  <!-- ===================== MARCA ===================== -->
+  <div class="hidden lg:flex flex-col justify-between bg-primary px-10 py-12 xl:px-14">
+    <div class="flex items-center gap-3">
+      <span class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-on-primary text-primary">
+        <span class="material-symbols-outlined" aria-hidden="true">fitness_center</span>
+      </span>
+      <div>
+        <p class="font-display text-xl font-bold leading-tight text-on-primary">Mi Gimnasio</p>
+        <p class="font-mono text-[11px] uppercase tracking-widest text-primary-fixed">Panel de gestión</p>
+      </div>
+    </div>
+
+    <div class="max-w-xl">
+      <h1 class="font-display text-4xl xl:text-5xl font-extrabold leading-tight text-on-primary">
+        Sistema de gestión para gimnasios
+      </h1>
+      <p class="mt-4 text-body-lg text-primary-fixed">
+        Socios, membresías, caja e inventario en un solo sitio. Cada movimiento queda registrado y cuadrado.
+      </p>
+
+      <div class="mt-10 grid gap-4 sm:grid-cols-3">
+        @for (c of caracteristicas; track c.titulo) {
+          <!-- `primary-container` sobre `primary`: mismo tono, un escalón más
+               claro. Da relieve sin introducir un color nuevo. -->
+          <div class="rounded-xl bg-primary-container/60 p-4 flex flex-col gap-2">
+            <span class="flex size-9 items-center justify-center rounded-lg bg-primary-fixed text-on-primary-fixed">
+              <span class="material-symbols-outlined" aria-hidden="true">{{ c.icono }}</span>
+            </span>
+            <p class="font-display text-sm font-bold text-on-primary">{{ c.titulo }}</p>
+            <p class="text-xs leading-relaxed text-primary-fixed">{{ c.texto }}</p>
+          </div>
+        }
+      </div>
+    </div>
+
+    <p class="font-mono text-[11px] uppercase tracking-widest text-primary-fixed">
+      Desarrollado por {{ desarrolladoPor }}
     </p>
+  </div>
 
-    <form class="mt-6 flex flex-col gap-4" [formGroup]="form" (ngSubmit)="enviar()" novalidate>
-      @if (requiereCodigoGimnasio()) {
-        <div>
-          <label for="codigoGimnasio" class="block text-sm font-medium text-text-principal mb-1">
-            Código de gimnasio
-          </label>
-          <input
-            id="codigoGimnasio"
-            type="text"
-            class="field-input"
-            autocomplete="organization"
-            formControlName="codigoGimnasio"
-          />
-          <p class="mt-1 text-xs text-neutral-500">
-            El identificador de tu gimnasio, el mismo que aparece en su dirección web.
-          </p>
-          @if (form.controls.codigoGimnasio.invalid && form.controls.codigoGimnasio.touched) {
-            <p class="mt-1 text-xs text-danger-text">El código de gimnasio es obligatorio.</p>
-          }
-        </div>
-      }
-
-      <div>
-        <label for="correo" class="block text-sm font-medium text-text-principal mb-1">
-          Correo
-        </label>
-        <input
-          id="correo"
-          type="email"
-          class="field-input"
-          autocomplete="username"
-          formControlName="correo"
-        />
-        @if (form.controls.correo.invalid && form.controls.correo.touched) {
-          <p class="mt-1 text-xs text-danger-text">Introduce un correo válido.</p>
-        }
+  <!-- ===================== ACCESO ===================== -->
+  <div class="flex items-center justify-center px-4 py-10 sm:px-8">
+    <div class="w-full max-w-md">
+      <!-- Cabecera de marca solo en móvil, donde el panel morado no se ve. -->
+      <div class="lg:hidden mb-6 flex items-center justify-center gap-3">
+        <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-on-primary">
+          <span class="material-symbols-outlined" aria-hidden="true">fitness_center</span>
+        </span>
+        <p class="font-display text-lg font-bold text-primary">Mi Gimnasio</p>
       </div>
 
-      <div>
-        <label for="password" class="block text-sm font-medium text-text-principal mb-1">
-          Contraseña
-        </label>
-        <input
-          id="password"
-          type="password"
-          class="field-input"
-          autocomplete="current-password"
-          formControlName="password"
-        />
-        @if (form.controls.password.invalid && form.controls.password.touched) {
-          <p class="mt-1 text-xs text-danger-text">La contraseña es obligatoria.</p>
-        }
-      </div>
-
-      @if (errorBackend()) {
-        <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">
-          {{ errorBackend() }}
+      <div class="card-base p-6 sm:p-8">
+        <h2 class="font-display text-2xl font-bold text-on-surface text-center">¡Hola, bienvenido!</h2>
+        <p class="mt-1 text-sm text-on-surface-variant text-center">
+          Entra con tus credenciales para gestionar el gimnasio.
         </p>
-      }
 
-      <button type="submit" class="btn-primary w-full mt-2" [disabled]="enviando()">
-        {{ enviando() ? 'Entrando…' : 'Entrar' }}
-      </button>
-    </form>
+        <form class="mt-6 flex flex-col gap-4" [formGroup]="form" (ngSubmit)="enviar()" novalidate>
+          @if (requiereCodigoGimnasio()) {
+            <div>
+              <label for="codigoGimnasio" class="block text-sm font-medium text-on-surface mb-1">
+                Código de gimnasio
+              </label>
+              <input
+                id="codigoGimnasio"
+                type="text"
+                class="field-input"
+                autocomplete="organization"
+                formControlName="codigoGimnasio"
+              />
+              <p class="mt-1 text-xs text-on-surface-variant">
+                El identificador de tu gimnasio, el mismo que aparece en su dirección web.
+              </p>
+              @if (form.controls.codigoGimnasio.invalid && form.controls.codigoGimnasio.touched) {
+                <p class="mt-1 text-xs text-danger-text">El código de gimnasio es obligatorio.</p>
+              }
+            </div>
+          }
+
+          <div>
+            <label for="correo" class="block text-sm font-medium text-on-surface mb-1">Correo</label>
+            <div class="relative">
+              <span
+                class="material-symbols-outlined pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant"
+                aria-hidden="true"
+              >person</span>
+              <input
+                id="correo"
+                type="email"
+                class="field-input pl-11"
+                autocomplete="username"
+                placeholder="tu@correo.com"
+                formControlName="correo"
+              />
+            </div>
+            @if (form.controls.correo.invalid && form.controls.correo.touched) {
+              <p class="mt-1 text-xs text-danger-text">Introduce un correo válido.</p>
+            }
+          </div>
+
+          <div>
+            <label for="password" class="block text-sm font-medium text-on-surface mb-1">Contraseña</label>
+            <div class="relative">
+              <span
+                class="material-symbols-outlined pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant"
+                aria-hidden="true"
+              >lock</span>
+              <input
+                id="password"
+                [type]="passwordVisible() ? 'text' : 'password'"
+                class="field-input pl-11 pr-11"
+                autocomplete="current-password"
+                formControlName="password"
+              />
+              <button
+                type="button"
+                class="absolute right-2 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container-low"
+                [attr.aria-label]="passwordVisible() ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+                [attr.aria-pressed]="passwordVisible()"
+                (click)="alternarPassword()"
+              >
+                <span class="material-symbols-outlined text-base" aria-hidden="true">
+                  {{ passwordVisible() ? 'visibility_off' : 'visibility' }}
+                </span>
+              </button>
+            </div>
+            @if (form.controls.password.invalid && form.controls.password.touched) {
+              <p class="mt-1 text-xs text-danger-text">La contraseña es obligatoria.</p>
+            }
+          </div>
+
+          @if (errorBackend()) {
+            <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">
+              {{ errorBackend() }}
+            </p>
+          }
+
+          <button type="submit" class="btn-primary w-full mt-2" [disabled]="enviando()">
+            {{ enviando() ? 'Entrando…' : 'Iniciar sesión' }}
+            @if (!enviando()) {
+              <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+            }
+          </button>
+        </form>
+
+        <!-- Sin "¿olvidaste tu contraseña?" ni enlace de registro: ninguna de
+             las dos existe todavía (no hay endpoint de recuperación, y el de
+             registro sigue abierto sin autenticar). Un enlace que no lleva a
+             ninguna parte es peor que no tenerlo. -->
+        <p class="mt-6 text-center text-xs text-on-surface-variant">
+          ¿No tienes acceso? Pídeselo al administrador de tu gimnasio.
+        </p>
+      </div>
+
+      <p class="lg:hidden mt-6 text-center font-mono text-[11px] uppercase tracking-widest text-on-surface-variant">
+        Desarrollado por {{ desarrolladoPor }}
+      </p>
+    </div>
   </div>
 </div>

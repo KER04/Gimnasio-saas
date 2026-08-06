@@ -4,9 +4,11 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
+from apps.core.permissions import TienePermiso
 from apps.core.tenant import tenant_context
 from apps.core.throttling import (
     LoginPorCorreoThrottle,
@@ -15,7 +17,12 @@ from apps.core.throttling import (
 )
 from apps.organizacion.models import Usuario
 
-from .serializers import LoginSerializer, RegisterSerializer, UsuarioSerializer
+from .serializers import (
+    CambiarPasswordSerializer,
+    LoginSerializer,
+    RegisterSerializer,
+    UsuarioSerializer,
+)
 
 # Debe coincidir con `apps.core.middleware._ESTADOS_TENANT_EXCLUIDOS`: un
 # tenant cancelado/suspendido no debe poder "entrar por subdominio" tampoco
@@ -185,22 +192,36 @@ class RegisterView(MensajeThrottleEnEspanolMixin, generics.CreateAPIView):
     del cuerpo, con el subdominio del Host como respaldo -- ver
     ``_resolver_tenant_login_register``).
 
-    Sigue con AllowAny (pendiente de restringir, ver encargo), pero exige un
-    tenant resuelto: sin él, 400 -- no existe un usuario "sin gimnasio".
+    Exige un tenant resuelto: sin él, 400 -- no existe un usuario "sin
+    gimnasio".
 
-    Parte A: solo throttle por IP (evita creación masiva de cuentas desde
-    una misma máquina). No tiene sentido el throttle por correo aquí -- cada
-    registro trae un correo distinto casi por definición, y el objetivo es
-    frenar el VOLUMEN de altas, no proteger una cuenta concreta.
+    ## Ya NO es AllowAny
+
+    Lo fue, marcado como "pendiente de restringir". Abierto significaba que
+    cualquiera que conociera un subdominio podía crearse una cuenta dentro de
+    ese gimnasio: el throttle por IP limitaba el ritmo, no el hecho. Ahora
+    dar de alta a un compañero es lo que siempre debió ser -- una operación
+    del administrador del gimnasio, con ``config.usuarios``.
+
+    El alta de GIMNASIOS es otra cosa distinta y vive fuera de aquí: la hace
+    el proveedor (``crear_tenant`` / panel de plataforma), no este endpoint.
+
+    Se conserva el throttle por IP: sigue siendo útil frente a un token
+    robado que intente crear cuentas en masa.
     """
     serializer_class = RegisterSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [TienePermiso]
+    permiso_requerido = 'config.usuarios'
     throttle_classes = [LoginPorIPThrottle]
 
     def create(self, request, *args, **kwargs):
-        tenant, error = _resolver_tenant_login_register(request)
-        if error is not None:
-            return error
+        # El tenant es SIEMPRE el de quien pide el alta, nunca el que venga en
+        # el cuerpo. Antes se resolvía del cuerpo/Host porque el endpoint era
+        # anónimo y no había otra forma; ahora hay usuario autenticado, y
+        # seguir mirando el cuerpo permitiría que el administrador del
+        # gimnasio A creara usuarios dentro del gimnasio B mandando otro
+        # `subdominio`.
+        tenant = request.user.tenant
 
         request.tenant = tenant
         request.tenant_id = tenant.id
@@ -352,6 +373,48 @@ class MeView(APIView):
             'permisos': sorted(_codigos_permiso_del_rol(rol.id)) if rol else [],
         })
         return Response(datos)
+
+
+class CambiarPasswordView(APIView):
+    """``POST /api/auth/cambiar-password/``: el usuario cambia SU contraseña.
+
+    ## Las demás sesiones se cierran
+
+    Quien cambia su contraseña muchas veces lo hace porque cree que alguien
+    más la tiene. Dejar vivas las sesiones abiertas en otros dispositivos
+    convertiría el cambio en un gesto decorativo, así que se invalidan todos
+    sus refresh tokens y se le devuelve una pareja nueva para la sesión
+    actual: sigue dentro donde está, y fuera en todo lo demás.
+
+    Los ACCESS tokens ya emitidos siguen siendo válidos hasta que caduquen
+    (son autocontenidos, no se consultan contra la base). La ventana es corta
+    y cerrarla exigiría verificar cada petición contra la base, que es
+    precisamente lo que un JWT evita.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        entrada = CambiarPasswordSerializer(data=request.data, context={'request': request})
+        entrada.is_valid(raise_exception=True)
+
+        usuario = request.user
+        usuario.set_password(entrada.validated_data['password_nueva'])
+        usuario.save(update_fields=['password'])
+
+        for outstanding in OutstandingToken.objects.filter(user=usuario):
+            # get_or_create y no create: un refresh ya usado para cerrar
+            # sesión puede estar en la lista negra, y un duplicado violaría
+            # la restricción única de `token_blacklist_blacklistedtoken`.
+            BlacklistedToken.objects.get_or_create(token=outstanding)
+
+        refresh = RefreshToken.for_user(usuario)
+        refresh['tenant_id'] = usuario.tenant_id
+        return Response({
+            'detail': 'Contraseña actualizada. Se cerraron las demás sesiones.',
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+        })
 
 
 class LogoutView(APIView):

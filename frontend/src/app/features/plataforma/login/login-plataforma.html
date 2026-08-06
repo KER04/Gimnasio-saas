@@ -1,0 +1,83 @@
+<!-- Fondo oscuro, al contrario que el login del gimnasio: entrar aquí no es
+     lo mismo que entrar a un gimnasio, y conviene que no se confundan. -->
+<div class="min-h-dvh bg-[#12101a] flex items-center justify-center p-4 sm:p-6">
+  <div class="w-full max-w-md flex flex-col gap-6">
+
+    <div class="flex flex-col items-center text-center gap-2">
+      <span class="flex items-center justify-center size-14 rounded-2xl bg-primary text-on-primary">
+        <span class="material-symbols-outlined text-[30px]" aria-hidden="true">admin_panel_settings</span>
+      </span>
+      <h1 class="text-headline-lg-mobile sm:text-headline-lg text-white mt-1">Panel del proveedor</h1>
+      <p class="text-sm text-white/60">
+        Administración de los gimnasios contratantes.
+      </p>
+    </div>
+
+    <form class="rounded-2xl bg-white/[0.04] border border-white/10 p-5 sm:p-6 flex flex-col gap-4"
+          [formGroup]="formulario" (ngSubmit)="enviar()">
+
+      @if (error()) {
+        <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2" role="alert">
+          {{ error() }}
+        </p>
+      }
+
+      <div>
+        <label for="correo" class="block text-sm font-medium text-white/80 mb-1.5">Correo</label>
+        <input
+          id="correo"
+          type="email"
+          inputmode="email"
+          autocomplete="username"
+          class="field-input bg-white/[0.06] border-white/15 text-white placeholder:text-white/35"
+          placeholder="tu@proveedor.com"
+          formControlName="correo"
+        />
+        @if (formulario.controls.correo.invalid && formulario.controls.correo.touched) {
+          <p class="mt-1 text-xs text-danger-text">Escribe tu correo.</p>
+        }
+      </div>
+
+      <div>
+        <label for="password" class="block text-sm font-medium text-white/80 mb-1.5">Contraseña</label>
+        <div class="relative">
+          <input
+            id="password"
+            [type]="passwordVisible() ? 'text' : 'password'"
+            autocomplete="current-password"
+            class="field-input bg-white/[0.06] border-white/15 text-white placeholder:text-white/35 pr-11"
+            placeholder="••••••••••••"
+            formControlName="password"
+          />
+          <button
+            type="button"
+            class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-white/50 hover:text-white/80"
+            [attr.aria-label]="passwordVisible() ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+            (click)="alternarPassword()"
+          >
+            <span class="material-symbols-outlined text-[20px]" aria-hidden="true">
+              {{ passwordVisible() ? 'visibility_off' : 'visibility' }}
+            </span>
+          </button>
+        </div>
+        @if (formulario.controls.password.invalid && formulario.controls.password.touched) {
+          <p class="mt-1 text-xs text-danger-text">Escribe tu contraseña.</p>
+        }
+      </div>
+
+      <button type="submit" class="btn-primary w-full justify-center mt-1" [disabled]="enviando()">
+        {{ enviando() ? 'Entrando…' : 'Entrar' }}
+      </button>
+
+      <!-- Sin enlace de registro: las cuentas del panel se crean por consola.
+           Es intencionado -- quien entra aquí ve todos los gimnasios. -->
+      <p class="text-xs text-white/40 text-center">
+        Las cuentas de este panel las crea el administrador del sistema.
+      </p>
+    </form>
+
+    <p class="text-center text-xs text-white/30">
+      ¿Buscabas tu gimnasio? <a href="/login" class="underline hover:text-white/60">Entra por aquí</a>.
+    </p>
+  </div>
+</div>

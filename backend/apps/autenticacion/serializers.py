@@ -132,3 +132,29 @@ class LoginSerializer(TokenObtainPairSerializer):
         data = super().validate(attrs)
         data['user'] = UsuarioSerializer(self.user).data
         return data
+
+
+class CambiarPasswordSerializer(serializers.Serializer):
+    """Cambio de la contraseña PROPIA.
+
+    Se exige la contraseña actual aunque el usuario ya venga autenticado. No
+    es redundante: el token puede estar en un navegador que alguien dejó
+    abierto en el mostrador, y sin este paso cualquiera que pase por delante
+    se queda con la cuenta cambiándole la contraseña. Es la única barrera que
+    distingue "tiene la sesión abierta" de "es la persona".
+    """
+
+    password_actual = serializers.CharField(write_only=True)
+    password_nueva = serializers.CharField(write_only=True, validators=[validate_password])
+
+    def validate_password_actual(self, valor):
+        if not self.context['request'].user.check_password(valor):
+            raise serializers.ValidationError('La contraseña actual no es correcta.')
+        return valor
+
+    def validate(self, datos):
+        if datos['password_actual'] == datos['password_nueva']:
+            raise serializers.ValidationError({
+                'password_nueva': 'La contraseña nueva debe ser distinta de la actual.',
+            })
+        return datos

@@ -91,7 +91,14 @@ class ClienteResumenSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Cliente
-        fields = ('id', 'nombre', 'cedula', 'telefono', 'activo', 'membresia_vigente', 'ultima_visita')
+        # `eliminado_en` viaja también en el listado: normalmente sale `null`
+        # (el listado esconde los eliminados), pero con `?incluir_eliminados=1`
+        # es lo único que distingue una fila eliminada de una viva, y sin ese
+        # dato la pantalla no podría ofrecer "Restaurar".
+        fields = (
+            'id', 'nombre', 'cedula', 'telefono', 'activo', 'membresia_vigente',
+            'ultima_visita', 'eliminado_en',
+        )
         read_only_fields = fields
 
     def get_membresia_vigente(self, obj):
@@ -294,6 +301,9 @@ class VentaSaldoSerializer(serializers.Serializer):
     en orden cronológico (RF-09)."""
 
     venta_id = serializers.IntegerField()
+    #: Número visible de la venta, único por sede. Es el del recibo; el
+    #: `venta_id` es el identificador interno y no debería enseñarse.
+    consecutivo = serializers.IntegerField(allow_null=True)
     fecha_hora = serializers.DateTimeField()
     total = serializers.DecimalField(max_digits=12, decimal_places=2)
     total_pagado = serializers.DecimalField(max_digits=12, decimal_places=2)

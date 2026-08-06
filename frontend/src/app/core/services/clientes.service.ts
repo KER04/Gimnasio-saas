@@ -11,6 +11,7 @@ import {
   CompraCliente,
   DeudaCliente,
   EstadoFiltroCliente,
+  FiltroEliminados,
   MembresiaResumen,
 } from '../models/cliente.model';
 import { RespuestaPaginada } from '../models/paginacion.model';
@@ -33,6 +34,7 @@ export class ClientesService {
     page?: number,
     estado?: EstadoFiltroCliente,
     plan?: number,
+    eliminados: FiltroEliminados = 'excluir',
   ): Observable<RespuestaPaginada<ClienteResumen>> {
     let params = new HttpParams();
     if (buscar) {
@@ -46,6 +48,9 @@ export class ClientesService {
     }
     if (plan) {
       params = params.set('plan', plan);
+    }
+    if (eliminados !== 'excluir') {
+      params = params.set('eliminados', eliminados);
     }
     return this.http.get<RespuestaPaginada<ClienteResumen>>(`${this.base}/`, { params });
   }
@@ -66,6 +71,12 @@ export class ClientesService {
    * ventas se conserva (la fila sigue existiendo con `eliminado_en` fijado). */
   eliminar(id: number): Observable<void> {
     return this.http.delete<void>(`${this.base}/${id}/`);
+  }
+
+  /** Deshace `eliminar()`. Sin esto, borrar un cliente por error solo se
+   * podía arreglar tocando la base de datos a mano. */
+  restaurar(id: number): Observable<Cliente> {
+    return this.http.post<Cliente>(`${this.base}/${id}/restaurar/`, {});
   }
 
   /** Todas las membresías del cliente con su estado YA calculado (RF-16):

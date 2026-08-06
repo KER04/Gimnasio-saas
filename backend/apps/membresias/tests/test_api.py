@@ -421,3 +421,52 @@ class AislamientoMembresiasTestCase(TestCase):
         self.assertEqual(respuesta.status_code, 200, respuesta.content)
         ids = {m['id'] for m in respuesta.json()['results']}
         self.assertNotIn(self.membresia_b.id, ids)
+
+
+@override_settings(ALLOWED_HOSTS=_ALLOWED_HOSTS_PRUEBA)
+class PlanBajaYReactivacionTestCase(TestCase):
+    """La baja de un plan es LÓGICA (``activo=False``) y debe tener vuelta atrás.
+
+    El ``get_queryset`` filtraba ``activo=True`` en todas las acciones, no
+    solo en el listado. Reactivar es un ``PATCH {activo: true}`` sobre una
+    fila que por definición está inactiva, así que la vista la escondía y
+    respondía 404: la casilla "Activo" de la pantalla de planes no podía
+    volver a marcarse una vez desmarcada.
+    """
+
+    databases = {'default', 'ddl'}
+    SUBDOMINIO = 'plan-baja'
+
+    @classmethod
+    def setUpTestData(cls):
+        cache.clear()
+        cls.datos = crear_escenario_pos(cls.SUBDOMINIO, 'PB')
+
+    def _headers(self):
+        return _auth_headers(self.datos['usuario_admin'], self.SUBDOMINIO)
+
+    def test_un_plan_dado_de_baja_se_puede_reactivar(self):
+        plan = self.datos['plan_mensual']
+
+        self.assertEqual(self.client.delete(f'/api/planes/{plan.id}/', **self._headers()).status_code, 204)
+
+        # Fuera del listado que consume el POS, dentro del de gestión.
+        normales = self.client.get('/api/planes/', **self._headers()).json()['results']
+        self.assertNotIn(plan.id, [p['id'] for p in normales])
+        con_bajas = self.client.get(
+            '/api/planes/', {'incluir_inactivos': '1'}, **self._headers(),
+        ).json()['results']
+        self.assertIn(plan.id, [p['id'] for p in con_bajas])
+
+        # El detalle responde (si no, el formulario ni se abriría) y el PATCH
+        # lo devuelve a la circulación.
+        self.assertEqual(self.client.get(f'/api/planes/{plan.id}/', **self._headers()).status_code, 200)
+        respuesta = self.client.patch(
+            f'/api/planes/{plan.id}/', {'activo': True},
+            content_type='application/json', **self._headers(),
+        )
+        self.assertEqual(respuesta.status_code, 200, respuesta.content)
+        self.assertTrue(respuesta.json()['activo'])
+
+        normales = self.client.get('/api/planes/', **self._headers()).json()['results']
+        self.assertIn(plan.id, [p['id'] for p in normales])

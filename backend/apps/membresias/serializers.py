@@ -10,6 +10,7 @@ salen de ``v_membresias_estado`` (``VistaMembresiaEstado``,
 listado paginado; si no se lo pasan (detalle, o resultado de una acción de
 escritura), cae a una única consulta puntual.
 """
+from django.db import IntegrityError, transaction
 from rest_framework import serializers
 
 from apps.auditoria.models import VistaMembresiaEstado
@@ -137,3 +138,101 @@ class MembresiaPorVencerSerializer(serializers.Serializer):
     fecha_fin = serializers.DateField()
     dias_restantes = serializers.IntegerField()
     estado_calculado = serializers.CharField()
+
+
+# ---------------------------------------------------------------------------
+# Gestión del catálogo de planes (CRUD, pantalla "Gestión de Membresías")
+# ---------------------------------------------------------------------------
+
+class PlanAdminSerializer(serializers.ModelSerializer):
+    """Escritura (y lectura) del catálogo de planes para la pantalla de
+    gestión (``PlanViewSet``). ``PlanMiniSerializer``/``PlanSerializer`` de
+    arriba son de solo lectura para otras pantallas; este es el único que
+    valida entrada.
+    """
+
+    class Meta:
+        model = Plan
+        fields = ('id', 'nombre', 'tipo', 'duracion_dias', 'precio', 'requiere_entrenador', 'sede', 'activo')
+        read_only_fields = ('id',)
+        extra_kwargs = {
+            'duracion_dias': {'required': False, 'allow_null': True},
+            # NULL = plan disponible en todas las sedes del tenant.
+            'sede': {'required': False, 'allow_null': True},
+            # `requiere_entrenador` y `activo` se declaran en el modelo con
+            # `db_default=` (el valor lo pone PostgreSQL), NO con `default=`
+            # de Python. DRF solo mira el segundo, así que sin esto los daría
+            # por obligatorios y un alta que no los mandara se llevaría un 400
+            # por dos campos que tienen valor por defecto perfectamente
+            # definido. Omitirlos deja que la columna aplique su db_default.
+            'requiere_entrenador': {'required': False},
+            'activo': {'required': False},
+        }
+
+    def validate(self, attrs):
+        """Replica ``ck_planes_duracion`` en la capa API: sin esto, un
+        payload inválido llega a PostgreSQL y estalla como ``IntegrityError``
+        (500 crudo); con esto el usuario recibe un 400 con mensaje en
+        español, señalando el campo concreto.
+
+        En un PATCH parcial ``attrs`` solo trae lo que cambió, así que para
+        decidir hay que combinar con lo que ya tiene la instancia (si la hay).
+
+        Con el tipo ``por_sesion`` se distinguen DOS situaciones que no
+        merecen la misma respuesta:
+
+        - El cliente manda tipo y duración a la vez, en contradicción
+          (``{"tipo": "por_sesion", "duracion_dias": 30}``): es un error suyo
+          y se rechaza. Anular el valor en silencio guardaría algo distinto
+          de lo que pidió, sin avisar.
+        - El cliente solo cambia el tipo (``PATCH {"tipo": "por_sesion"}``)
+          sobre un plan que hoy tiene 30 días: NO es un error. Pasar a
+          venderse sesión a sesión implica renunciar a la vigencia, así que
+          la duración se anula aquí en vez de devolver un 400 exigiendo un
+          ``duracion_dias: null`` que el cliente no tiene por qué adivinar.
+        """
+        tipo = attrs.get('tipo', getattr(self.instance, 'tipo', None))
+        duracion = attrs.get('duracion_dias', getattr(self.instance, 'duracion_dias', None))
+
+        if tipo == Plan.TipoPlan.POR_SESION:
+            # `in attrs` distingue "lo mandó explícitamente" de "viene de la
+            # instancia": solo lo primero es una contradicción del cliente.
+            if 'duracion_dias' in attrs and attrs['duracion_dias'] is not None:
+                raise serializers.ValidationError({
+                    'duracion_dias': 'Los planes por sesión no tienen duración: se venden sesión a sesión.',
+                })
+            attrs['duracion_dias'] = None
+        else:
+            if duracion is None or duracion <= 0:
+                raise serializers.ValidationError({
+                    'duracion_dias': 'Indica una duración mayor que cero para este tipo de plan.',
+                })
+
+        return attrs
+
+    def _guardar_o_traducir_duplicado(self, guardar):
+        """``uq_planes_nombre`` (nombre único por tenant): un ``IntegrityError``
+        crudo sería un 500; se envuelve en un SAVEPOINT (``transaction.atomic``
+        ANIDADO -- imprescindible porque ``ATOMIC_REQUESTS`` ya tiene la
+        petición entera dentro de una transacción: sin el SAVEPOINT, capturar
+        la excepción aquí dejaría esa transacción exterior envenenada) para
+        poder traducirlo a un 400 con mensaje claro en español. Mismo patrón
+        que ``apps.clientes.serializers.ClienteSerializer``.
+        """
+        try:
+            with transaction.atomic():
+                return guardar()
+        except IntegrityError as exc:
+            if 'uq_planes_nombre' in str(exc):
+                raise serializers.ValidationError({
+                    'nombre': 'Ya existe un plan con este nombre en este gimnasio.',
+                })
+            raise
+
+    def create(self, validated_data):
+        return self._guardar_o_traducir_duplicado(lambda: super(PlanAdminSerializer, self).create(validated_data))
+
+    def update(self, instance, validated_data):
+        return self._guardar_o_traducir_duplicado(
+            lambda: super(PlanAdminSerializer, self).update(instance, validated_data)
+        )

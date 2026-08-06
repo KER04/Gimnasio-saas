@@ -1,0 +1,344 @@
+<div class="flex flex-col gap-5">
+  <div class="rounded-xl bg-primary px-5 py-5 sm:px-6 flex flex-wrap items-center justify-between gap-4">
+    <div class="min-w-0">
+      <h1 class="text-headline-lg-mobile sm:text-headline-lg text-on-primary">Punto de venta</h1>
+      <p class="mt-1 text-body-md text-primary-fixed">
+        Vende productos y planes, aplica descuentos y cobra total o parcialmente.
+      </p>
+    </div>
+    @if (nombreSede(); as sede) {
+      <span class="shrink-0 rounded-full bg-primary-fixed px-3 py-1.5 font-mono text-[11px] uppercase tracking-wide text-on-primary-fixed">
+        {{ sede }}
+      </span>
+    }
+  </div>
+
+  <!-- Sin sede no se puede vender: el stock y la venta se registran contra
+       una sede concreta. Se dice claramente en vez de fallar al cobrar. -->
+  @if (sedeId() === null) {
+    <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">
+      Tu usuario no tiene una sede asignada, así que no puede registrar ventas. Pide que te asignen una.
+    </p>
+  } @else {
+    @if (ventaHecha(); as venta) {
+      <div class="rounded-[10px] bg-success-bg text-success-text px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+        <p class="flex items-center gap-2.5 text-sm">
+          <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+          <span>
+            Venta <strong>#{{ venta.id }}</strong> registrada por {{ dineroTexto(venta.total) }} ·
+            {{ venta.estado === 'pagada' ? 'pagada' : 'con saldo pendiente' }}
+          </span>
+        </p>
+        <button type="button" class="btn-outlined" (click)="cerrarAviso()">Entendido</button>
+      </div>
+    }
+
+    <div class="grid gap-5 xl:grid-cols-[1fr_400px] xl:items-start">
+      <!-- ===================== CATÁLOGO ===================== -->
+      <div class="flex flex-col gap-4">
+        <div class="card-base p-4 flex flex-col gap-3">
+          <div class="flex gap-2">
+            <button
+              type="button"
+              [class]="
+                pestana() === 'productos'
+                  ? 'rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary'
+                  : 'rounded-full border border-outline-variant px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-low'
+              "
+              (click)="pestana.set('productos')"
+            >Productos</button>
+            <button
+              type="button"
+              [class]="
+                pestana() === 'planes'
+                  ? 'rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary'
+                  : 'rounded-full border border-outline-variant px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-low'
+              "
+              (click)="pestana.set('planes')"
+            >Planes</button>
+          </div>
+
+          <div class="relative">
+            <span
+              class="material-symbols-outlined pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant"
+              aria-hidden="true"
+            >search</span>
+            <input
+              type="search"
+              class="field-search"
+              placeholder="Buscar por nombre…"
+              autocomplete="off"
+              [formControl]="buscarCatalogo"
+              aria-label="Buscar en el catálogo"
+            />
+          </div>
+        </div>
+
+        @if (errorCatalogo()) {
+          <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ errorCatalogo() }}</p>
+        }
+
+        @if (pestana() === 'productos') {
+          @if (!puedeVerInventario()) {
+            <div class="card-base p-8 text-center text-sm text-on-surface-variant">
+              No tienes permiso para ver el inventario.
+            </div>
+          } @else if (cargandoCatalogo()) {
+            <div class="card-base p-8 text-center text-sm text-on-surface-variant">Cargando productos…</div>
+          } @else if (productos().length === 0) {
+            <div class="card-base p-8 text-center text-sm text-on-surface-variant">
+              Ningún producto coincide con la búsqueda.
+            </div>
+          } @else {
+            <div class="grid gap-3 sm:grid-cols-2">
+              @for (p of productos(); track p.id) {
+                <button
+                  type="button"
+                  class="card-base p-4 text-left transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
+                  [disabled]="sinExistencias(p)"
+                  (click)="agregarProducto(p)"
+                >
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                      <p class="font-medium text-on-surface">{{ p.nombre }}</p>
+                      @if (p.marca || p.presentacion) {
+                        <p class="text-xs text-on-surface-variant">
+                          {{ p.marca }}{{ p.marca && p.presentacion ? ' · ' : '' }}{{ p.presentacion }}
+                        </p>
+                      }
+                    </div>
+                    <p class="shrink-0 font-semibold text-primary">{{ dineroTexto(p.precio_venta) }}</p>
+                  </div>
+                  @if (textoStock(p); as texto) {
+                    <p class="mt-2 text-xs" [class]="sinExistencias(p) ? 'text-danger-text' : 'text-on-surface-variant'">
+                      {{ texto }}
+                    </p>
+                  }
+                </button>
+              }
+            </div>
+          }
+        } @else {
+          @if (planesFiltrados().length === 0) {
+            <div class="card-base p-8 text-center text-sm text-on-surface-variant">
+              Ningún plan coincide con la búsqueda.
+            </div>
+          } @else {
+            <div class="grid gap-3 sm:grid-cols-2">
+              @for (p of planesFiltrados(); track p.id) {
+                <button
+                  type="button"
+                  class="card-base p-4 text-left transition-colors hover:bg-surface-container-low"
+                  (click)="agregarPlan(p)"
+                >
+                  <div class="flex items-start justify-between gap-2">
+                    <p class="font-medium text-on-surface">{{ p.nombre }}</p>
+                    <p class="shrink-0 font-semibold text-primary">{{ dineroTexto(p.precio) }}</p>
+                  </div>
+                  <p class="mt-1 text-xs text-on-surface-variant">
+                    @if (p.duracion_dias !== null) {
+                      Genera membresía de {{ p.duracion_dias }} días
+                    } @else {
+                      Sesión suelta · no genera membresía
+                    }
+                  </p>
+                </button>
+              }
+            </div>
+          }
+        }
+      </div>
+
+      <!-- ===================== CARRITO ===================== -->
+      <div class="card-base overflow-hidden xl:sticky xl:top-4 flex flex-col">
+        <div class="flex items-center justify-between border-b border-outline-variant px-4 py-3">
+          <p class="text-sm font-semibold text-on-surface">Venta actual</p>
+          @if (carrito().length > 0) {
+            <button type="button" class="text-xs text-on-surface-variant hover:text-danger-text" (click)="vaciar()">
+              Vaciar
+            </button>
+          }
+        </div>
+
+        @if (carrito().length === 0) {
+          <p class="px-4 py-10 text-center text-sm text-on-surface-variant">
+            Pulsa un producto o un plan para añadirlo.
+          </p>
+        } @else {
+          <ul class="divide-y divide-outline-variant max-h-72 overflow-y-auto">
+            @for (l of carrito(); track l.tipo + l.id) {
+              <li class="px-4 py-3 flex flex-col gap-2">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-medium text-on-surface">{{ l.nombre }}</p>
+                    <p class="text-xs text-on-surface-variant">{{ dineroTexto(l.precioUnitario) }} c/u</p>
+                  </div>
+                  <p class="shrink-0 text-sm font-semibold text-on-surface">{{ totalLinea(l) }}</p>
+                </div>
+
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-1">
+                    <button type="button" class="btn-icon size-9 min-h-0 min-w-0" aria-label="Quitar una unidad" (click)="cambiarCantidad(l, -1)">
+                      <span class="material-symbols-outlined text-base" aria-hidden="true">remove</span>
+                    </button>
+                    <span class="w-8 text-center text-sm text-on-surface">{{ l.cantidad }}</span>
+                    <button type="button" class="btn-icon size-9 min-h-0 min-w-0" aria-label="Añadir una unidad" (click)="cambiarCantidad(l, 1)">
+                      <span class="material-symbols-outlined text-base" aria-hidden="true">add</span>
+                    </button>
+                  </div>
+                  <button type="button" class="text-xs text-on-surface-variant hover:text-danger-text" (click)="quitar(l)">
+                    Quitar
+                  </button>
+                </div>
+
+                @if (l.stock !== null && l.cantidad > l.stock) {
+                  <p class="text-xs text-danger-text">Solo hay {{ l.stock }} en existencia.</p>
+                }
+              </li>
+            }
+          </ul>
+
+          <div class="border-t border-outline-variant p-4 flex flex-col gap-3" [formGroup]="formCobro">
+            <!-- Cliente -->
+            <div>
+              <label for="cliente" class="block text-sm font-medium text-on-surface mb-1">
+                Cliente
+                @if (clienteObligatorio()) {
+                  <span class="text-danger-text">*</span>
+                }
+              </label>
+
+              @if (clienteElegido(); as c) {
+                <div class="flex items-center justify-between gap-2 rounded-[10px] bg-surface-container px-3 py-2">
+                  <span class="min-w-0">
+                    <span class="block truncate text-sm text-on-surface">{{ c.nombre }}</span>
+                    <span class="block truncate font-mono text-xs text-on-surface-variant">{{ c.cedula }}</span>
+                  </span>
+                  <button type="button" class="btn-icon size-9 min-h-0 min-w-0" aria-label="Quitar cliente" (click)="quitarCliente()">
+                    <span class="material-symbols-outlined text-base" aria-hidden="true">close</span>
+                  </button>
+                </div>
+              } @else {
+                <div class="relative">
+                  <input
+                    id="cliente"
+                    type="search"
+                    class="field-input"
+                    placeholder="Buscar por nombre o cédula…"
+                    autocomplete="off"
+                    [formControl]="buscarCliente"
+                  />
+                  @if (sugerenciasCliente().length > 0) {
+                    <ul class="card-base absolute left-0 right-0 z-20 mt-1 max-h-56 overflow-y-auto">
+                      @for (c of sugerenciasCliente(); track c.id) {
+                        <li class="border-b border-outline-variant last:border-b-0">
+                          <button
+                            type="button"
+                            class="w-full px-3 py-2 text-left transition-colors hover:bg-surface-container-low"
+                            (click)="elegirCliente(c)"
+                          >
+                            <span class="block truncate text-sm text-on-surface">{{ c.nombre }}</span>
+                            <span class="block truncate font-mono text-xs text-on-surface-variant">{{ c.cedula }}</span>
+                          </button>
+                        </li>
+                      }
+                    </ul>
+                  }
+                </div>
+                @if (clienteObligatorio()) {
+                  <p class="mt-1 text-xs text-warning-text">
+                    @if (hayPlanConVigencia()) {
+                      Hay un plan con vigencia: la membresía tiene que ser de alguien.
+                    } @else {
+                      Queda saldo pendiente: nadie puede quedar debiendo sin identificar.
+                    }
+                  </p>
+                }
+              }
+            </div>
+
+            <!-- Descuento -->
+            @if (puedeDescontar()) {
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label for="descuento" class="block text-sm font-medium text-on-surface mb-1">Descuento</label>
+                  <!-- `type="text"`, NO `type="number"`: ver precio.util.ts. -->
+                  <input id="descuento" type="text" inputmode="decimal" autocomplete="off" class="field-input" placeholder="0" formControlName="descuento" />
+                </div>
+                <div>
+                  <label for="motivo" class="block text-sm font-medium text-on-surface mb-1">Motivo</label>
+                  <input id="motivo" type="text" class="field-input" placeholder="Obligatorio" formControlName="motivo_descuento" />
+                </div>
+              </div>
+              @if (descuentoExcedido()) {
+                <p class="text-xs text-danger-text">El descuento no puede superar el subtotal.</p>
+              } @else if (faltaMotivoDescuento()) {
+                <p class="text-xs text-danger-text">Todo descuento exige indicar un motivo.</p>
+              }
+            }
+
+            <!-- Totales -->
+            <dl class="flex flex-col gap-1 text-sm">
+              <div class="flex justify-between">
+                <dt class="text-on-surface-variant">Subtotal</dt>
+                <dd class="text-on-surface">{{ dinero(subtotalCentimos()) }}</dd>
+              </div>
+              @if (descuentoCentimos() > 0) {
+                <div class="flex justify-between">
+                  <dt class="text-on-surface-variant">Descuento</dt>
+                  <dd class="text-danger-text">− {{ dinero(descuentoCentimos()) }}</dd>
+                </div>
+              }
+              <div class="flex justify-between border-t border-outline-variant pt-1">
+                <dt class="font-semibold text-on-surface">Total</dt>
+                <dd class="font-display text-lg font-bold text-primary">{{ dinero(totalCentimos()) }}</dd>
+              </div>
+            </dl>
+
+            <!-- Cobro -->
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label for="paga" class="block text-sm font-medium text-on-surface mb-1">Paga</label>
+                <input id="paga" type="text" inputmode="decimal" autocomplete="off" class="field-input" formControlName="paga" />
+              </div>
+              <div>
+                <label for="forma" class="block text-sm font-medium text-on-surface mb-1">Forma de pago</label>
+                <select id="forma" class="field-input" formControlName="forma_pago">
+                  <option value="">Sin pago ahora</option>
+                  @for (f of opcionesFormaPago; track f) {
+                    <option [value]="f">{{ formasPago[f] }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+
+            @if (pagoExcedido()) {
+              <p class="text-xs text-danger-text">Lo que se cobra no puede superar el total.</p>
+            }
+
+            <div class="flex justify-between rounded-[10px] bg-surface-container px-3 py-2 text-sm">
+              <span class="text-on-surface-variant">Queda a deber</span>
+              <span class="font-semibold" [class]="quedaSaldo() ? 'text-warning-text' : 'text-success-text'">
+                {{ dinero(saldoCentimos()) }}
+              </span>
+            </div>
+
+            @if (stockInsuficiente()) {
+              <p class="rounded-[10px] bg-danger-bg text-danger-text text-xs px-3 py-2">
+                Alguna línea supera las existencias de la sede; el cobro será rechazado.
+              </p>
+            }
+            @if (errorCobro()) {
+              <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ errorCobro() }}</p>
+            }
+
+            <button type="button" class="btn-primary w-full" [disabled]="!puedeCobrar()" (click)="cobrar()">
+              <span class="material-symbols-outlined" aria-hidden="true">point_of_sale</span>
+              {{ cobrando() ? 'Cobrando…' : 'Cobrar ' + dinero(pagaCentimos()) }}
+            </button>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>

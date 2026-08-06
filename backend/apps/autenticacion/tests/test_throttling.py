@@ -14,7 +14,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.test import TestCase, override_settings
 
-from .test_auth import PASSWORD, _crear_tenant_con_usuario
+from .test_auth import PASSWORD, _cabecera_token, _crear_tenant_con_usuario
 
 _ALLOWED_HOSTS_PRUEBA = ['testserver', '.testserver']
 
@@ -132,8 +132,13 @@ class ThrottlingRegisterTestCase(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        cls.tenant, cls.rol, _usuario = _crear_tenant_con_usuario(
+        # `config.usuarios`: desde que register dejó de ser AllowAny, DRF
+        # comprueba los permisos ANTES que el throttle. Sin el permiso, las
+        # tres llamadas se quedarían en 403 y el contador de peticiones ni
+        # se incrementaría: la prueba no llegaría a ejercitar el throttle.
+        cls.tenant, cls.rol, cls.admin = _crear_tenant_con_usuario(
             'throttlereg', 'THRREG', 'ya-existe.throttlereg@example.com',
+            permisos=('config.usuarios',),
         )
 
     def setUp(self):
@@ -147,10 +152,10 @@ class ThrottlingRegisterTestCase(TestCase):
                 'nombre': 'Nuevo Usuario',
                 'password': PASSWORD,
                 'rol': self.rol.id,
-                'subdominio': 'throttlereg',
             },
             content_type='application/json',
-            HTTP_HOST='testserver',
+            HTTP_HOST='throttlereg.testserver',
+            **_cabecera_token(self.admin),
             **extra,
         )
 

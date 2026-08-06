@@ -20,6 +20,7 @@ from .serializers import (
     CancelarMembresiaInputSerializer,
     MembresiaPorVencerSerializer,
     MembresiaSerializer,
+    PlanAdminSerializer,
     RenovarMembresiaInputSerializer,
 )
 from .services import MembresiaError, asignar_membresia, cancelar_membresia, renovar_membresia
@@ -210,3 +211,54 @@ class MembresiaViewSet(
 
         datos = MembresiaPorVencerSerializer(filas, many=True).data
         return Response(datos)
+
+
+class PlanViewSet(viewsets.ModelViewSet):
+    """``/api/planes/``: catálogo de planes vendibles (pantalla "Gestión de
+    Membresías"). Antes lo servía ``apps.ventas.views.PlanListView`` (solo
+    lectura); al pasar a CRUD se trasladó aquí, junto al modelo ``Plan``,
+    conservando la misma URL, método y permiso para el POS y el alta de
+    clientes (ver docstring de ``apps.ventas.urls``).
+
+    El borrado (``DELETE``) es LÓGICO, no elimina la fila: ``Membresia.plan``
+    es ``on_delete=PROTECT``, así que un borrado real reventaría en cuanto el
+    plan tenga una sola membresía vendida, además de destruir el histórico de
+    precios de esas membresías. Dar de baja el plan (``activo=False``) lo
+    saca del catálogo vendible sin tocar nada de lo ya vendido.
+    """
+
+    permission_classes = [TienePermiso]
+    permiso_requerido = 'membresias.gestionar'
+    serializer_class = PlanAdminSerializer
+
+    def get_queryset(self):
+        qs = Plan.objects.select_related('sede').order_by('nombre')
+
+        # Filtro de compatibilidad, crítico: los consumidores existentes
+        # (buscador del POS, alta de clientes) esperan exactamente el
+        # comportamiento de la antigua PlanListView -- solo planes activos.
+        # Únicamente la pantalla nueva de gestión pide ver también los
+        # dados de baja (para poder reactivarlos), y lo hace explícito con
+        # ?incluir_inactivos=1.
+        #
+        # El filtro es SOLO del listado. Aplicado también a las acciones de
+        # detalle hacía que la baja lógica no tuviera vuelta atrás: reactivar
+        # es un PATCH {activo: true} sobre una fila que está inactiva, y el
+        # queryset la escondía, así que respondía 404.
+        incluir_inactivos = self.request.query_params.get('incluir_inactivos', '').lower() in ('1', 'true')
+        if self.action == 'list' and not incluir_inactivos:
+            qs = qs.filter(activo=True)
+
+        return qs
+
+    def perform_create(self, serializer):
+        # El tenant nunca se acepta desde el payload: lo impone el servidor
+        # a partir del middleware multi-tenant (RLS), igual que en
+        # apps.clientes.serializers.ClienteSerializer.create.
+        serializer.save(tenant=self.request.tenant)
+
+    def destroy(self, request, *args, **kwargs):
+        plan = self.get_object()
+        plan.activo = False
+        plan.save(update_fields=['activo'])
+        return Response(status=status.HTTP_204_NO_CONTENT)

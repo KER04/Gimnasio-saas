@@ -1,0 +1,59 @@
+<div class="min-h-dvh bg-surface flex flex-col">
+  <!-- Barra oscura, igual que el login del panel: recuerda en todo momento
+       que no se está dentro de un gimnasio concreto. -->
+  <header class="bg-[#12101a] text-white">
+    <div class="mx-auto w-full max-w-7xl px-4 sm:px-6 py-3 flex items-center gap-4">
+      <a routerLink="/plataforma/gimnasios" class="flex items-center gap-2.5 min-w-0">
+        <span class="flex items-center justify-center size-9 rounded-xl bg-primary text-on-primary shrink-0">
+          <span class="material-symbols-outlined text-[20px]" aria-hidden="true">admin_panel_settings</span>
+        </span>
+        <span class="min-w-0">
+          <span class="block text-sm font-semibold truncate">Panel del proveedor</span>
+          <span class="block text-[11px] text-white/45">Todos los gimnasios</span>
+        </span>
+      </a>
+
+      <nav class="hidden sm:flex items-center gap-1 ml-4">
+        <a
+          routerLink="/plataforma/gimnasios"
+          routerLinkActive="bg-white/10 text-white"
+          class="rounded-lg px-3 py-1.5 text-sm text-white/65 hover:text-white hover:bg-white/5 transition-colors"
+        >
+          Gimnasios
+        </a>
+      </nav>
+
+      <div class="ml-auto flex items-center gap-3">
+        @if (usuario(); as u) {
+          <div class="hidden sm:block text-right leading-tight">
+            <p class="text-sm">{{ u.nombre }}</p>
+            <p class="text-[11px] text-white/45">
+              {{ u.rol === 'administrador' ? 'Administrador' : 'Soporte' }}
+            </p>
+          </div>
+          <a
+            routerLink="/plataforma/cuenta"
+            class="flex items-center justify-center size-9 rounded-full bg-white/10 text-xs font-semibold shrink-0 hover:bg-white/20 transition-colors"
+            title="Mi cuenta"
+            aria-label="Mi cuenta"
+          >
+            {{ iniciales(u.nombre) }}
+          </a>
+        }
+        <button
+          type="button"
+          class="p-2 rounded-lg text-white/55 hover:text-white hover:bg-white/5 transition-colors"
+          title="Cerrar sesión"
+          aria-label="Cerrar sesión"
+          (click)="salir()"
+        >
+          <span class="material-symbols-outlined text-[20px]" aria-hidden="true">logout</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 py-5 sm:py-6">
+    <router-outlet />
+  </main>
+</div>

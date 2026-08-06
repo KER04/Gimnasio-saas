@@ -59,6 +59,23 @@ _MISS = object()
 _ESTADOS_TENANT_EXCLUIDOS = ('cancelado', 'suspendido')
 
 
+def invalidar_cache_tenant(subdominio):
+    """Olvida la resolución cacheada de un subdominio.
+
+    Hay que llamarla en cuanto cambia algo que afecte a si ese subdominio
+    debe resolver o no -- en la práctica, el ``estado`` del tenant. Sin esto,
+    suspender un gimnasio tardaría hasta ``_TENANT_CACHE_TTL`` segundos en
+    dejarlo fuera, y reactivarlo otro tanto: el caché guarda también los
+    "no existe" (``_MISS``), así que un gimnasio recién reactivado seguiría
+    rebotando a sus usuarios durante un minuto sin motivo aparente.
+
+    Un TTL corto hace el fallo pasajero, no inofensivo: el minuto en el que
+    un gimnasio suspendido sigue operando es exactamente el minuto en el que
+    alguien decidió suspenderlo.
+    """
+    cache.delete(f'{_TENANT_CACHE_PREFIX}{subdominio.lower()}')
+
+
 def _subdominio_desde_host(host):
     """Extrae el subdominio de un ``Host`` de request, o ``None`` si no aplica.
 

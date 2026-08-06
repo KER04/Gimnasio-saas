@@ -1,0 +1,265 @@
+<div class="flex flex-col gap-5">
+  <div class="rounded-xl bg-primary px-5 py-5 sm:px-6">
+    <h1 class="text-headline-lg-mobile sm:text-headline-lg text-on-primary">Ventas</h1>
+    <p class="mt-1 text-body-md text-primary-fixed">
+      Historial de ventas: qué se vendió, a quién, cómo se pagó y qué queda pendiente.
+    </p>
+  </div>
+
+  <!-- Filtros -->
+  <div class="card-base p-4 flex flex-col gap-3">
+    <div class="flex flex-wrap gap-2">
+      @for (e of estados; track e.valor) {
+        <button
+          type="button"
+          [class]="
+            filtroEstado.value === e.valor
+              ? 'rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-on-primary'
+              : 'rounded-full border border-outline-variant px-3 py-1.5 text-xs text-on-surface-variant hover:bg-surface-container-low'
+          "
+          (click)="filtrar(e.valor)"
+        >{{ e.etiqueta }}</button>
+      }
+    </div>
+
+    <div class="grid sm:grid-cols-3 gap-3">
+      <div>
+        <label for="desde" class="block text-sm font-medium text-on-surface mb-1">Desde</label>
+        <input id="desde" type="date" class="field-input" [formControl]="desde" />
+      </div>
+      <div>
+        <label for="hasta" class="block text-sm font-medium text-on-surface mb-1">Hasta</label>
+        <input id="hasta" type="date" class="field-input" [formControl]="hasta" />
+      </div>
+      <div class="flex items-end">
+        <button type="button" class="btn-primary" (click)="aplicarFechas()">
+          <span class="material-symbols-outlined" aria-hidden="true">search</span>
+          Consultar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  @if (error()) {
+    <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ error() }}</p>
+  }
+
+  <!-- Anulación -->
+  @if (ventaAnulando(); as v) {
+    <div class="card-base p-4 sm:p-5 flex flex-col gap-4">
+      <div class="flex items-start justify-between gap-2">
+        <div>
+          <h2 class="text-headline-md text-on-surface">Anular venta #{{ v.consecutivo }}</h2>
+          <p class="text-xs text-on-surface-variant mt-0.5">
+            {{ v.cliente_nombre ?? 'Venta de mostrador' }} · {{ dinero(v.total) }}
+          </p>
+        </div>
+        <button type="button" class="btn-icon" aria-label="Cerrar" (click)="cerrarAnular()">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
+      </div>
+
+      <!-- Se enumera exactamente lo que hace `anular_venta`, incluida la
+           cancelación de membresías, que es la consecuencia menos evidente y
+           la más grave: revoca el acceso del cliente. -->
+      <div class="rounded-[10px] bg-warning-bg text-warning-text px-3 py-2 text-sm flex items-start gap-2">
+        <span class="material-symbols-outlined shrink-0" aria-hidden="true">warning</span>
+        <span>
+          Al anular esta venta:
+          <span class="block mt-1">
+            · Los productos <strong>vuelven al inventario</strong>.
+          </span>
+          <span class="block">
+            · Las membresías que generó quedan <strong>canceladas</strong>: el cliente pierde el acceso.
+          </span>
+          <span class="block">
+            · La venta y sus pagos <strong>dejan de contar</strong> en la caja y en los informes.
+          </span>
+          <span class="block mt-1">
+            No se borra nada: queda registrada como anulada, con tu nombre y el motivo.
+            <strong>No se puede deshacer.</strong>
+          </span>
+        </span>
+      </div>
+
+      @if (errorAnular()) {
+        <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ errorAnular() }}</p>
+      }
+
+      <form class="flex flex-col gap-3" [formGroup]="formAnular" (ngSubmit)="anular()" novalidate>
+        <div>
+          <label for="motivo" class="block text-sm font-medium text-on-surface mb-1">Motivo *</label>
+          <input
+            id="motivo"
+            type="text"
+            class="field-input"
+            placeholder="Ej. cobro duplicado, error en el importe, devolución"
+            formControlName="motivo"
+          />
+          @if (formAnular.controls.motivo.invalid && formAnular.controls.motivo.touched) {
+            <p class="mt-1 text-xs text-danger-text">El motivo es obligatorio.</p>
+          }
+        </div>
+
+        <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+          <button type="button" class="btn-outlined w-full sm:w-auto" (click)="cerrarAnular()">Cancelar</button>
+          <button
+            type="submit"
+            class="btn-primary w-full sm:w-auto bg-danger-text hover:bg-danger-text"
+            [disabled]="anulando()"
+          >
+            {{ anulando() ? 'Anulando…' : 'Anular venta' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  }
+
+  @if (cargando()) {
+    <div class="card-base p-8 text-center text-sm text-on-surface-variant">Cargando ventas…</div>
+  } @else if (ventas().length === 0) {
+    <div class="card-base p-8 text-center text-sm text-on-surface-variant">
+      No hay ventas que coincidan con el filtro.
+    </div>
+  } @else {
+    <div class="card-base overflow-hidden">
+      <p class="bg-surface-container-highest px-4 py-2.5 text-xs text-on-surface-variant">
+        {{ count() }} venta(s) · pulsa una para ver el detalle
+      </p>
+
+      <ul class="divide-y divide-outline-variant">
+        @for (v of ventas(); track v.id) {
+          <li>
+            <button
+              type="button"
+              class="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-container-low"
+              (click)="alternarDetalle(v)"
+            >
+              <span class="min-w-0">
+                <span class="block text-sm font-medium text-on-surface">
+                  Venta #{{ v.consecutivo }}
+                  <!-- `cliente_nombre` en null NO es un dato que falte: es una
+                       venta de mostrador, pagada al contado y sin identificar. -->
+                  · {{ v.cliente_nombre ?? 'Mostrador' }}
+                </span>
+                <span class="block text-xs text-on-surface-variant">
+                  {{ fecha(v.fecha_hora) }} · {{ v.usuario_nombre }}
+                </span>
+              </span>
+              <span class="flex items-center gap-3">
+                <span class="text-right">
+                  <span class="block text-sm font-semibold text-on-surface">{{ dinero(v.total) }}</span>
+                  @if (v.estado !== 'anulada' && v.saldo !== '0.00') {
+                    <span class="block text-xs text-warning-text">falta {{ dinero(v.saldo) }}</span>
+                  }
+                </span>
+                <span [class]="claseEstado(v.estado)">{{ etiquetaEstado(v.estado) }}</span>
+                <span class="material-symbols-outlined text-on-surface-variant" aria-hidden="true">
+                  {{ detalleAbierto() === v.id ? 'expand_less' : 'expand_more' }}
+                </span>
+              </span>
+            </button>
+
+            @if (detalleAbierto() === v.id) {
+              <div class="border-t border-outline-variant bg-surface-container-low px-4 py-3 flex flex-col gap-3">
+                @if (v.estado === 'anulada') {
+                  <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">
+                    Venta anulada. Motivo: <strong>{{ v.motivo_anulacion }}</strong>
+                    @if (v.anulada_en) { · {{ fecha(v.anulada_en) }} }
+                  </p>
+                }
+
+                <div>
+                  <p class="text-label-sm uppercase tracking-wider text-on-surface-variant mb-1">Qué se vendió</p>
+                  <ul class="flex flex-col gap-1">
+                    @for (d of v.detalles; track d.id) {
+                      <li class="flex flex-wrap items-center justify-between gap-2 text-sm">
+                        <span class="text-on-surface">
+                          {{ cantidad(d.cantidad) }} × {{ d.descripcion }}
+                          <span class="text-xs text-on-surface-variant">({{ dinero(d.precio_unitario) }} c/u)</span>
+                        </span>
+                        <span class="text-on-surface">{{ dinero(d.total_linea) }}</span>
+                      </li>
+                    }
+                  </ul>
+                </div>
+
+                <dl class="flex flex-col gap-1 text-sm">
+                  <div class="flex justify-between">
+                    <dt class="text-on-surface-variant">Subtotal</dt>
+                    <dd class="text-on-surface">{{ dinero(v.subtotal) }}</dd>
+                  </div>
+                  @if (v.descuento !== '0.00') {
+                    <div class="flex justify-between">
+                      <dt class="text-on-surface-variant">
+                        Descuento
+                        @if (v.motivo_descuento) {
+                          <span class="text-xs">· {{ v.motivo_descuento }}</span>
+                        }
+                      </dt>
+                      <dd class="text-danger-text">− {{ dinero(v.descuento) }}</dd>
+                    </div>
+                  }
+                  <div class="flex justify-between border-t border-outline-variant pt-1">
+                    <dt class="font-semibold text-on-surface">Total</dt>
+                    <dd class="font-semibold text-primary">{{ dinero(v.total) }}</dd>
+                  </div>
+                </dl>
+
+                <div>
+                  <p class="text-label-sm uppercase tracking-wider text-on-surface-variant mb-1">Pagos</p>
+                  @if (v.pagos.length === 0) {
+                    <p class="text-sm text-on-surface-variant">Sin pagos registrados.</p>
+                  } @else {
+                    <ul class="flex flex-col gap-1">
+                      @for (p of v.pagos; track p.id) {
+                        <li class="flex flex-wrap items-center justify-between gap-2 text-sm">
+                          <span [class]="p.anulado ? 'text-on-surface-variant line-through' : 'text-on-surface'">
+                            {{ fecha(p.fecha_hora) }} · {{ etiquetaFormaPago(p.forma_pago) }}
+                            @if (p.es_pago_inicial) {
+                              <span class="text-xs text-on-surface-variant">(pago inicial)</span>
+                            }
+                          </span>
+                          <span [class]="p.anulado ? 'text-on-surface-variant line-through' : 'text-on-surface'">
+                            {{ dinero(p.monto) }}
+                          </span>
+                        </li>
+                      }
+                    </ul>
+                  }
+                </div>
+
+                <div class="flex flex-wrap justify-end gap-2">
+                  @if (v.cliente !== null && v.estado !== 'anulada' && v.saldo !== '0.00') {
+                    <button type="button" class="btn-outlined" (click)="irAlCliente(v)">
+                      <span class="material-symbols-outlined" aria-hidden="true">payments</span>
+                      Cobrar saldo
+                    </button>
+                  }
+                  @if (puedeAnular() && v.estado !== 'anulada') {
+                    <button type="button" class="btn-outlined text-danger-text" (click)="abrirAnular(v)">
+                      <span class="material-symbols-outlined" aria-hidden="true">block</span>
+                      Anular
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+          </li>
+        }
+      </ul>
+
+      <div class="flex items-center justify-between gap-3 border-t border-outline-variant px-4 py-3 text-sm">
+        <span class="text-on-surface-variant">Página {{ pagina() }}</span>
+        <div class="flex gap-2">
+          <button type="button" class="btn-outlined" [disabled]="pagina() === 1" (click)="paginaAnterior()">
+            Anterior
+          </button>
+          <button type="button" class="btn-outlined" [disabled]="!hayMas()" (click)="paginaSiguiente()">
+            Siguiente
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+</div>

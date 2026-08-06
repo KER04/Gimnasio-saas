@@ -1,0 +1,520 @@
+<div class="flex flex-col gap-5">
+  <div class="rounded-xl bg-primary px-5 py-5 sm:px-6">
+    <h1 class="text-headline-lg-mobile sm:text-headline-lg text-on-primary">Control de acceso</h1>
+    <p class="mt-1 text-body-md text-primary-fixed">
+      Busca al cliente por nombre o cédula, comprueba su estado y registra el ingreso.
+    </p>
+  </div>
+
+  <div class="grid gap-5 xl:grid-cols-[1fr_380px] xl:items-start">
+    <div class="flex flex-col gap-5">
+      @if (ultimoRegistro(); as registro) {
+        <div class="rounded-[10px] bg-success-bg text-success-text px-4 py-3 flex items-center gap-2.5">
+          <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+          <p class="text-sm">
+            Ingreso registrado: <strong>{{ registro.cliente_nombre }}</strong> · {{ hora(registro.fecha_hora) }}
+            @if (!registro.con_membresia_vigente) {
+              <span class="block text-xs">{{ registro.motivo_autorizacion }}</span>
+            }
+          </p>
+        </div>
+      }
+
+      <!-- Avisos del registro. Van FUERA del panel de verificación porque el
+           ingreso también se registra desde el listado, y ahí ese panel no
+           existe. -->
+      @if (avisoAntipassback()) {
+        <p class="rounded-[10px] bg-warning-bg text-warning-text text-sm px-3 py-2">{{ avisoAntipassback() }}</p>
+      }
+      @if (errorRegistrar()) {
+        <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ errorRegistrar() }}</p>
+      }
+
+      <!-- ===================== SESIÓN SUELTA ===================== -->
+      @if (panelSesionSuelta()) {
+        <div class="card-base p-4 sm:p-5 flex flex-col gap-4">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <h2 class="text-headline-md text-on-surface">Sesión suelta</h2>
+              <p class="text-xs text-on-surface-variant mt-0.5">
+                Cobra una entrada puntual y registra el ingreso de una vez.
+              </p>
+            </div>
+            <button type="button" class="btn-icon" aria-label="Cerrar" (click)="cerrarSesionSuelta()">
+              <span class="material-symbols-outlined" aria-hidden="true">close</span>
+            </button>
+          </div>
+
+          @if (errorSuelta()) {
+            <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ errorSuelta() }}</p>
+          }
+
+          @if (planesPorSesion().length === 0) {
+            <p class="rounded-[10px] bg-warning-bg text-warning-text text-sm px-3 py-2">
+              No hay ningún plan «por sesión» activo. Crea uno en Gestión de Membresías para poder cobrar
+              entradas puntuales.
+            </p>
+          } @else {
+            <form class="flex flex-col gap-4" [formGroup]="formSuelta" (ngSubmit)="cobrarSesionSuelta()" novalidate>
+              <div class="grid sm:grid-cols-3 gap-4">
+                <div>
+                  <label for="suelta_plan" class="block text-sm font-medium text-on-surface mb-1">Sesión</label>
+                  <select id="suelta_plan" class="field-input" formControlName="plan_id">
+                    @for (p of planesPorSesion(); track p.id) {
+                      <option [value]="p.id">{{ p.nombre }} — {{ dinero(p.precio) }}</option>
+                    }
+                  </select>
+                </div>
+                <div>
+                  <label for="suelta_monto" class="block text-sm font-medium text-on-surface mb-1">Cobra (COP)</label>
+                  <!-- `type="text"`, NO `type="number"`: ver precio.util.ts. -->
+                  <input id="suelta_monto" type="text" inputmode="decimal" autocomplete="off" class="field-input" formControlName="monto" />
+                </div>
+                <div>
+                  <label for="suelta_forma" class="block text-sm font-medium text-on-surface mb-1">Forma de pago</label>
+                  <select id="suelta_forma" class="field-input" formControlName="forma_pago">
+                    @for (f of opcionesFormaPago; track f) {
+                      <option [value]="f">{{ formasPago[f] }}</option>
+                    }
+                  </select>
+                </div>
+              </div>
+
+              <!-- Cliente OPCIONAL: es la diferencia entre poder rastrear la
+                   entrada y no poder. Se explica en vez de dejarlo implícito. -->
+              <div>
+                <label for="suelta_cliente" class="block text-sm font-medium text-on-surface mb-1">
+                  Cliente <span class="text-on-surface-variant">(opcional)</span>
+                </label>
+
+                @if (clienteSuelta(); as c) {
+                  <div class="flex items-center justify-between gap-2 rounded-[10px] bg-surface-container px-3 py-2">
+                    <span class="min-w-0">
+                      <span class="block truncate text-sm text-on-surface">{{ c.nombre }}</span>
+                      <span class="block truncate font-mono text-xs text-on-surface-variant">{{ c.cedula }}</span>
+                    </span>
+                    <button type="button" class="btn-icon size-9 min-h-0 min-w-0" aria-label="Quitar cliente" (click)="quitarClienteSuelta()">
+                      <span class="material-symbols-outlined text-base" aria-hidden="true">close</span>
+                    </button>
+                  </div>
+                } @else {
+                  <div class="relative">
+                    <input
+                      id="suelta_cliente"
+                      type="search"
+                      class="field-input"
+                      placeholder="Buscar por nombre o cédula…"
+                      autocomplete="off"
+                      [formControl]="buscarClienteSuelta"
+                    />
+                    @if (sugerenciasSuelta().length > 0) {
+                      <ul class="card-base absolute left-0 right-0 z-20 mt-1 max-h-56 overflow-y-auto">
+                        @for (c of sugerenciasSuelta(); track c.id) {
+                          <li class="border-b border-outline-variant last:border-b-0">
+                            <button
+                              type="button"
+                              class="w-full px-3 py-2 text-left transition-colors hover:bg-surface-container-low"
+                              (click)="elegirClienteSuelta(c)"
+                            >
+                              <span class="block truncate text-sm text-on-surface">{{ c.nombre }}</span>
+                              <span class="block truncate font-mono text-xs text-on-surface-variant">{{ c.cedula }}</span>
+                            </button>
+                          </li>
+                        }
+                      </ul>
+                    }
+                  </div>
+                }
+              </div>
+
+              <div class="rounded-[10px] bg-surface-container px-3 py-2 text-xs text-on-surface-variant">
+                @if (clienteSuelta()) {
+                  El ingreso quedará <strong>en el historial del cliente</strong>, con la venta como motivo.
+                  Requiere permiso para autorizar ingresos sin membresía vigente.
+                } @else {
+                  Sin cliente, la entrada se registra como <strong>sesión anónima</strong>: sabrás que se cobró
+                  y que alguien entró, pero <strong>no quién</strong>, y no se le aplica el antipassback.
+                  Identifícalo si quieres que quede en su historial.
+                }
+              </div>
+
+              <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+                <button type="button" class="btn-outlined w-full sm:w-auto" (click)="cerrarSesionSuelta()">Cancelar</button>
+                <button type="submit" class="btn-primary w-full sm:w-auto" [disabled]="procesandoSuelta()">
+                  <span class="material-symbols-outlined" aria-hidden="true">login</span>
+                  {{ procesandoSuelta() ? 'Registrando…' : 'Cobrar y registrar ingreso' }}
+                </button>
+              </div>
+            </form>
+          }
+        </div>
+      }
+
+      <!-- ===================== LISTADO ===================== -->
+      @if (verificacion() === null && !panelSesionSuelta()) {
+        <div class="card-base p-4 sm:p-5 flex flex-col gap-3">
+          <!-- Buscador y botón en la misma fila, el botón a la derecha: lo
+               habitual es buscar a un socio, y cobrar una sesión suelta es la
+               salida para cuando no aparece. En móvil se apilan. -->
+          <div class="flex flex-col sm:flex-row gap-3">
+            <div class="relative flex-1">
+              <span
+                class="material-symbols-outlined pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant"
+                aria-hidden="true"
+              >search</span>
+              <input
+                type="search"
+                class="field-search"
+                placeholder="Buscar por nombre o cédula…"
+                autocomplete="off"
+                [formControl]="busqueda"
+                aria-label="Buscar cliente por nombre o cédula"
+              />
+            </div>
+
+            @if (puedeRegistrar()) {
+              <button type="button" class="btn-primary shrink-0" (click)="abrirSesionSuelta()">
+                <span class="material-symbols-outlined" aria-hidden="true">confirmation_number</span>
+                Cobrar sesión suelta
+              </button>
+            }
+          </div>
+
+          <!-- Filtros rápidos: en recepción interesa sobre todo separar a
+               quien puede pasar de quien no. -->
+          <div class="flex flex-wrap gap-2">
+            @for (f of filtros; track f.valor) {
+              <button
+                type="button"
+                [class]="
+                  filtroEstado.value === f.valor
+                    ? 'rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-on-primary'
+                    : 'rounded-full border border-outline-variant px-3 py-1.5 text-xs text-on-surface-variant hover:bg-surface-container-low'
+                "
+                (click)="filtroEstado.setValue(f.valor)"
+              >{{ f.etiqueta }}</button>
+            }
+          </div>
+        </div>
+
+        @if (errorClientes()) {
+          <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ errorClientes() }}</p>
+        }
+
+        @if (verificando()) {
+          <div class="card-base p-8 text-center text-sm text-on-surface-variant">Consultando…</div>
+        } @else if (cargandoClientes()) {
+          <div class="card-base p-8 text-center text-sm text-on-surface-variant">Cargando clientes…</div>
+        } @else if (clientes().length === 0) {
+          <div class="card-base p-8 text-center text-sm text-on-surface-variant">
+            Ningún cliente coincide con la búsqueda.
+          </div>
+        } @else {
+          <div class="card-base overflow-hidden">
+            <!-- Tono neutro, como el resto de cabeceras de sección: el morado
+                 se reserva al banner de la pantalla. -->
+            <p class="bg-surface-container-highest px-4 py-2.5 text-xs text-on-surface-variant">
+              Mostrando {{ clientes().length }} de {{ totalClientes() }} · pulsa un cliente para comprobar su acceso
+            </p>
+            <ul class="divide-y divide-outline-variant">
+              @for (c of clientes(); track c.id) {
+                <li>
+                  <button
+                    type="button"
+                    class="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-container-low"
+                    (click)="seleccionar(c)"
+                  >
+                    <span
+                      class="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary-fixed font-display text-xs font-semibold text-on-primary-fixed"
+                      aria-hidden="true"
+                    >{{ iniciales(c.nombre) }}</span>
+                    <span class="min-w-0 flex-1">
+                      <span class="block truncate text-sm font-medium text-on-surface">{{ c.nombre }}</span>
+                      <span class="block truncate font-mono text-xs text-on-surface-variant">{{ c.cedula }}</span>
+                    </span>
+                    <span [class]="claseEstado(c.membresia_vigente?.estado_calculado)">
+                      {{ etiquetaEstado(c.membresia_vigente?.estado_calculado) }}
+                    </span>
+
+                    <!-- Registro de un clic, solo para quien puede pasar. Es
+                         un <span role="button"> y no un <button>: esta fila
+                         YA es un botón y anidar botones no es HTML válido. -->
+                    @if (puedeRegistrar() && puedeIngresarDirecto(c)) {
+                      <span
+                        role="button"
+                        tabindex="0"
+                        class="btn-primary shrink-0 px-3"
+                        [attr.aria-label]="'Registrar ingreso de ' + c.nombre"
+                        [attr.aria-disabled]="registrandoId() === c.id"
+                        (click)="registrarDirecto(c, $event)"
+                        (keydown.enter)="registrarDirecto(c, $event)"
+                        (keydown.space)="registrarDirecto(c, $event)"
+                      >
+                        <span class="material-symbols-outlined" aria-hidden="true">login</span>
+                        {{ registrandoId() === c.id ? 'Registrando…' : 'Ingreso' }}
+                      </span>
+                    }
+                  </button>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+      }
+
+      @if (errorVerificar()) {
+        <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ errorVerificar() }}</p>
+      }
+
+      <!-- ===================== VERIFICACIÓN ===================== -->
+      @if (verificacion(); as v) {
+        <button
+          type="button"
+          class="inline-flex w-fit items-center gap-1 text-label-sm uppercase tracking-wider text-on-surface-variant hover:text-on-surface"
+          (click)="volverAlListado()"
+        >
+          <span class="material-symbols-outlined text-base" aria-hidden="true">arrow_back</span>
+          Volver al listado
+        </button>
+
+        <div class="card-base overflow-hidden">
+          <div
+            class="px-5 py-4 flex items-center gap-3"
+            [class]="v.puede_ingresar ? 'bg-success-bg text-success-text' : 'bg-danger-bg text-danger-text'"
+          >
+            <span class="material-symbols-outlined" aria-hidden="true">
+              {{ v.puede_ingresar ? 'check_circle' : 'block' }}
+            </span>
+            <div>
+              <p class="font-display font-bold">
+                {{ v.puede_ingresar ? 'Puede ingresar' : 'Sin membresía vigente' }}
+              </p>
+              @if (!v.puede_ingresar) {
+                <p class="text-xs">Renueva, cóbrale una sesión, o autoriza el ingreso dejando constancia.</p>
+              }
+            </div>
+          </div>
+
+          <div class="p-5 flex flex-col gap-4">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="font-display text-lg font-semibold text-on-surface">{{ v.cliente.nombre }}</p>
+                <p class="font-mono text-sm text-on-surface-variant">{{ v.cliente.cedula }}</p>
+                <p class="text-sm text-on-surface-variant">Tel. {{ v.cliente.telefono }}</p>
+              </div>
+              <button type="button" class="btn-outlined" (click)="irAlCliente()">Ver ficha</button>
+            </div>
+
+            @if (v.saldo_pendiente !== '0' && v.saldo_pendiente !== '0.00') {
+              <div class="rounded-[10px] bg-warning-bg text-warning-text px-3 py-2 flex items-center gap-2 text-sm">
+                <span class="material-symbols-outlined" aria-hidden="true">payments</span>
+                <span>Tiene <strong>{{ dinero(v.saldo_pendiente) }}</strong> pendientes de pago.</span>
+              </div>
+            }
+
+            @if (v.bloqueado_por_antipassback) {
+              <div class="rounded-[10px] bg-surface-container px-3 py-2 flex items-start gap-2 text-sm text-on-surface-variant">
+                <span class="material-symbols-outlined shrink-0" aria-hidden="true">schedule</span>
+                <span>
+                  Ya registró un ingreso hace poco; faltan
+                  <strong>{{ v.minutos_restantes_antipassback }}</strong> minuto(s) para poder registrar otro.
+                  No es un error: evita contar dos veces la misma entrada.
+                </span>
+              </div>
+            }
+
+            <div>
+              <p class="text-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Membresías</p>
+              @if (v.membresias.length === 0) {
+                <p class="text-sm text-on-surface-variant">Este cliente no tiene ninguna membresía registrada.</p>
+              } @else {
+                <ul class="flex flex-col gap-2">
+                  @for (m of v.membresias; track m.id) {
+                    <li class="flex flex-wrap items-center justify-between gap-2 rounded-[10px] bg-surface-container-low px-3 py-2">
+                      <span class="text-sm text-on-surface">{{ nombrePlan(m.plan_id) }}</span>
+                      <span class="flex items-center gap-2">
+                        <span class="text-xs text-on-surface-variant">hasta {{ m.fecha_fin }}</span>
+                        <span [class]="claseEstado(m.estado_calculado)">{{ etiquetaEstado(m.estado_calculado) }}</span>
+                      </span>
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+
+            <!-- ===== Resolver en el mostrador ===== -->
+            @if (!v.puede_ingresar && accion() === 'ninguna') {
+              <div class="flex flex-wrap gap-2">
+                @if (puedeGestionarMembresias() && membresiaARenovar()) {
+                  <button type="button" class="btn-outlined" (click)="abrirRenovar()">
+                    <span class="material-symbols-outlined" aria-hidden="true">autorenew</span>
+                    Renovar membresía
+                  </button>
+                }
+                @if (puedeRegistrar() && planesPorSesion().length > 0 && ventaSesion() === null) {
+                  <button type="button" class="btn-outlined" (click)="abrirSesion()">
+                    <span class="material-symbols-outlined" aria-hidden="true">confirmation_number</span>
+                    Cobrar una sesión
+                  </button>
+                }
+              </div>
+            }
+
+            @if (errorAccion()) {
+              <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ errorAccion() }}</p>
+            }
+
+            @if (accion() === 'renovar') {
+              <form class="rounded-[10px] bg-surface-container p-3 flex flex-col gap-3" [formGroup]="formRenovar" (ngSubmit)="renovar()" novalidate>
+                <p class="text-xs text-on-surface-variant">
+                  Se renueva la membresía más reciente. Si aún estuviera vigente no se pierden los días pagados;
+                  si ya venció, la nueva empieza hoy.
+                </p>
+                <div class="grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <label for="renov_plan" class="block text-sm font-medium text-on-surface mb-1">Plan</label>
+                    <select id="renov_plan" class="field-input" formControlName="plan_id">
+                      <option value="">Mismo plan</option>
+                      @for (p of planesConVigencia(); track p.id) {
+                        <option [value]="p.id">Cambiar a {{ p.nombre }} — {{ dinero(p.precio) }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div>
+                    <label for="renov_precio" class="block text-sm font-medium text-on-surface mb-1">Precio pagado (COP)</label>
+                    <!-- `type="text"`, NO `type="number"`: ver precio.util.ts. -->
+                    <input id="renov_precio" type="text" inputmode="decimal" autocomplete="off" class="field-input" formControlName="precio_pagado" />
+                  </div>
+                </div>
+                <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+                  <button type="button" class="btn-outlined w-full sm:w-auto" (click)="cerrarAccion()">Cancelar</button>
+                  <button type="submit" class="btn-primary w-full sm:w-auto" [disabled]="procesandoAccion()">
+                    {{ procesandoAccion() ? 'Renovando…' : 'Renovar' }}
+                  </button>
+                </div>
+              </form>
+            }
+
+            @if (accion() === 'sesion') {
+              <form class="rounded-[10px] bg-surface-container p-3 flex flex-col gap-3" [formGroup]="formSesion" (ngSubmit)="cobrarSesion()" novalidate>
+                <p class="text-xs text-on-surface-variant">
+                  Cobra una entrada puntual a nombre del cliente. No genera membresía: el ingreso queda
+                  registrado citando esta venta.
+                </p>
+                <div class="grid sm:grid-cols-3 gap-3">
+                  <div>
+                    <label for="ses_plan" class="block text-sm font-medium text-on-surface mb-1">Sesión</label>
+                    <select id="ses_plan" class="field-input" formControlName="plan_id">
+                      @for (p of planesPorSesion(); track p.id) {
+                        <option [value]="p.id">{{ p.nombre }} — {{ dinero(p.precio) }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div>
+                    <label for="ses_monto" class="block text-sm font-medium text-on-surface mb-1">Cobra (COP)</label>
+                    <input id="ses_monto" type="text" inputmode="decimal" autocomplete="off" class="field-input" formControlName="monto" />
+                  </div>
+                  <div>
+                    <label for="ses_forma" class="block text-sm font-medium text-on-surface mb-1">Forma de pago</label>
+                    <select id="ses_forma" class="field-input" formControlName="forma_pago">
+                      @for (f of opcionesFormaPago; track f) {
+                        <option [value]="f">{{ formasPago[f] }}</option>
+                      }
+                    </select>
+                  </div>
+                </div>
+                <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+                  <button type="button" class="btn-outlined w-full sm:w-auto" (click)="cerrarAccion()">Cancelar</button>
+                  <button type="submit" class="btn-primary w-full sm:w-auto" [disabled]="procesandoAccion()">
+                    {{ procesandoAccion() ? 'Cobrando…' : 'Cobrar sesión' }}
+                  </button>
+                </div>
+              </form>
+            }
+
+            @if (ventaSesion(); as ventaId) {
+              <div class="rounded-[10px] bg-success-bg text-success-text px-3 py-2 flex items-center gap-2 text-sm">
+                <span class="material-symbols-outlined" aria-hidden="true">receipt_long</span>
+                <span>Sesión cobrada (venta #{{ ventaId }}). Ya puedes registrar el ingreso.</span>
+              </div>
+            }
+
+            <!-- ===== Autorización nominal ===== -->
+            @if (v.requiere_autorizacion && puedeRegistrar()) {
+              @if (puedeAutorizar()) {
+                <form class="flex flex-col gap-2" [formGroup]="formAutorizacion" novalidate>
+                  <label for="motivo" class="text-sm font-medium text-on-surface">Motivo de la autorización *</label>
+                  <input
+                    id="motivo"
+                    type="text"
+                    class="field-input"
+                    placeholder="Ej. clase de prueba, renovará hoy…"
+                    formControlName="motivo_autorizacion"
+                  />
+                  @if (formAutorizacion.controls.motivo_autorizacion.invalid && formAutorizacion.controls.motivo_autorizacion.touched) {
+                    <p class="text-xs text-danger-text">El motivo es obligatorio; queda registrado a tu nombre.</p>
+                  }
+                </form>
+              } @else {
+                <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">
+                  No tienes permiso para autorizar ingresos sin membresía vigente. Pide a un responsable que lo haga.
+                </p>
+              }
+            }
+
+            @if (puedeRegistrar()) {
+              <button
+                type="button"
+                class="btn-primary w-full"
+                [disabled]="registrando() || (v.requiere_autorizacion && !puedeAutorizar())"
+                (click)="registrarIngreso()"
+              >
+                <span class="material-symbols-outlined" aria-hidden="true">login</span>
+                {{ registrando() ? 'Registrando…' : 'Registrar ingreso' }}
+              </button>
+            }
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- ===================== HISTORIAL ===================== -->
+    @if (puedeVerHistorial()) {
+      <div class="card-base overflow-hidden xl:sticky xl:top-4">
+        <div class="border-b border-outline-variant px-4 py-3">
+          <p class="text-sm font-semibold text-on-surface">Últimos ingresos</p>
+        </div>
+
+        @if (cargandoHistorial()) {
+          <p class="px-4 py-6 text-center text-sm text-on-surface-variant">Cargando…</p>
+        } @else if (historial().length === 0) {
+          <p class="px-4 py-6 text-center text-sm text-on-surface-variant">Todavía no hay ingresos registrados.</p>
+        } @else {
+          <ul class="max-h-[32rem] overflow-y-auto">
+            @for (a of historial(); track a.id) {
+              <li class="border-b border-outline-variant last:border-b-0 px-4 py-3">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-medium text-on-surface">
+                      {{ a.cliente_nombre ?? 'Sesión anónima' }}
+                    </p>
+                    <p class="font-mono text-xs text-on-surface-variant">{{ a.cliente_cedula ?? '—' }}</p>
+                  </div>
+                  <span class="shrink-0 text-xs text-on-surface-variant">{{ hora(a.fecha_hora) }}</span>
+                </div>
+                @if (!a.con_membresia_vigente) {
+                  <p class="mt-1 text-xs text-warning-text">
+                    {{ a.motivo_autorizacion ?? 'Sin membresía vigente' }}
+                    @if (a.autorizado_por_nombre) {
+                      · autorizó {{ a.autorizado_por_nombre }}
+                    }
+                  </p>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    }
+  </div>
+</div>

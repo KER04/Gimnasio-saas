@@ -1,0 +1,422 @@
+@if (cargando()) {
+  <div class="card-base p-8 flex items-center justify-center text-on-surface-variant text-sm">
+    Cargando gimnasio…
+  </div>
+} @else if (error()) {
+  <div class="flex flex-col gap-4">
+    <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ error() }}</p>
+    <button type="button" class="btn-secondary self-start" (click)="volver()">Volver</button>
+  </div>
+} @else if (gimnasio(); as g) {
+  <div class="flex flex-col gap-5">
+
+    <button type="button" class="self-start inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-on-surface" (click)="volver()">
+      <span class="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_back</span>
+      Todos los gimnasios
+    </button>
+
+    <div class="rounded-xl bg-primary px-5 py-5 sm:px-6 flex flex-wrap items-start justify-between gap-4">
+      <div class="min-w-0">
+        <h1 class="text-headline-lg-mobile sm:text-headline-lg text-on-primary">{{ g.nombre_comercial }}</h1>
+        <p class="mt-1 text-body-md text-primary-fixed font-mono">{{ g.subdominio }}</p>
+      </div>
+      <div class="flex items-center gap-3 shrink-0">
+        <span [class]="claseEstado(g.estado)">{{ etiquetaEstado(g.estado) }}</span>
+        @if (puedeGestionar() && !editando()) {
+          <button type="button" class="btn-inverted" (click)="abrirEdicion(g)">
+            <span class="material-symbols-outlined text-[20px]" aria-hidden="true">edit</span>
+            Editar
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- Cifras de uso -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div class="card-base p-4">
+        <p class="text-headline-md text-on-surface">{{ numero(g.sedes) }}</p>
+        <p class="text-xs text-on-surface-variant mt-0.5">Sedes activas</p>
+      </div>
+      <div class="card-base p-4">
+        <p class="text-headline-md text-on-surface">{{ numero(g.usuarios) }}</p>
+        <p class="text-xs text-on-surface-variant mt-0.5">Usuarios activos</p>
+      </div>
+      <div class="card-base p-4">
+        <p class="text-headline-md text-on-surface">{{ numero(g.clientes) }}</p>
+        <p class="text-xs text-on-surface-variant mt-0.5">Clientes</p>
+      </div>
+      <div class="card-base p-4">
+        <p class="text-headline-md text-on-surface">{{ numero(g.membresias_activas) }}</p>
+        <p class="text-xs text-on-surface-variant mt-0.5">Membresías vigentes</p>
+      </div>
+    </div>
+
+    @if (editando()) {
+      <!-- Formulario de edición. Sustituye a las tarjetas de solo lectura en
+           vez de abrirse aparte: son los mismos datos, y verlos duplicados
+           obligaría a comparar cuál manda. -->
+      <form class="card-base p-4 sm:p-5 flex flex-col gap-4" [formGroup]="formulario" (ngSubmit)="guardar()">
+        <h2 class="text-headline-md text-on-surface">Editar gimnasio</h2>
+
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div class="sm:col-span-2">
+            <label for="ed-nombre" class="block text-sm font-medium text-on-surface mb-1">Nombre comercial *</label>
+            <input id="ed-nombre" type="text" class="field-input" formControlName="nombre_comercial" />
+            @if (errorDe('nombre_comercial'); as e) {
+              <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+            }
+          </div>
+
+          <div>
+            <label for="ed-responsable" class="block text-sm font-medium text-on-surface mb-1">Responsable</label>
+            <input id="ed-responsable" type="text" class="field-input" formControlName="responsable" />
+          </div>
+          <div>
+            <label for="ed-correo" class="block text-sm font-medium text-on-surface mb-1">Correo de contacto</label>
+            <input id="ed-correo" type="email" inputmode="email" class="field-input" formControlName="correo" />
+            @if (errorDe('correo'); as e) {
+              <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+            }
+          </div>
+          <div>
+            <label for="ed-telefono" class="block text-sm font-medium text-on-surface mb-1">Teléfono</label>
+            <input id="ed-telefono" type="text" inputmode="tel" class="field-input" formControlName="telefono" />
+          </div>
+          <div>
+            <label for="ed-ciudad" class="block text-sm font-medium text-on-surface mb-1">Ciudad</label>
+            <input id="ed-ciudad" type="text" class="field-input" formControlName="ciudad" />
+          </div>
+          <div>
+            <label for="ed-nit" class="block text-sm font-medium text-on-surface mb-1">NIT</label>
+            <input id="ed-nit" type="text" class="field-input" formControlName="nit" />
+          </div>
+        </div>
+
+        <div class="border-t border-outline-variant pt-4 grid sm:grid-cols-2 gap-4">
+          <div class="sm:col-span-2">
+            <label for="ed-zona" class="block text-sm font-medium text-on-surface mb-1">Zona horaria *</label>
+            <input id="ed-zona" type="text" class="field-input font-mono" placeholder="America/Bogota"
+                   formControlName="zona_horaria" />
+            <p class="mt-1 text-xs text-on-surface-variant">
+              Formato IANA. Con ella se calcula qué día es en el gimnasio, así que decide cuándo
+              vence una membresía y en qué corte cae un cobro.
+            </p>
+            @if (errorDe('zona_horaria'); as e) {
+              <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+            }
+          </div>
+          <div>
+            <label for="ed-moneda" class="block text-sm font-medium text-on-surface mb-1">Moneda *</label>
+            <input id="ed-moneda" type="text" maxlength="3" class="field-input uppercase" formControlName="moneda" />
+            @if (errorDe('moneda'); as e) {
+              <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+            }
+          </div>
+          <div>
+            <label for="ed-aviso" class="block text-sm font-medium text-on-surface mb-1">Aviso de vencimiento (días)</label>
+            <input id="ed-aviso" type="number" min="0" max="60" class="field-input"
+                   formControlName="dias_aviso_vencimiento" />
+            @if (errorDe('dias_aviso_vencimiento'); as e) {
+              <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+            }
+          </div>
+          <div>
+            <label for="ed-antipass" class="block text-sm font-medium text-on-surface mb-1">Antipassback (minutos)</label>
+            <input id="ed-antipass" type="number" min="0" max="1440" class="field-input"
+                   formControlName="minutos_antipassback" />
+            <p class="mt-1 text-xs text-on-surface-variant">
+              Tiempo mínimo entre dos entradas del mismo cliente.
+            </p>
+            @if (errorDe('minutos_antipassback'); as e) {
+              <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+            }
+          </div>
+        </div>
+
+        <p class="text-xs text-on-surface-variant border-t border-outline-variant pt-3">
+          El subdominio (<span class="font-mono">{{ g.subdominio }}</span>) no se puede cambiar: es la
+          dirección del cliente y modificarla rompería sus enlaces guardados.
+        </p>
+
+        <div class="flex flex-wrap gap-2">
+          <button type="submit" class="btn-primary" [disabled]="guardando()">
+            {{ guardando() ? 'Guardando…' : 'Guardar cambios' }}
+          </button>
+          <button type="button" class="btn-secondary" [disabled]="guardando()" (click)="cancelarEdicion()">
+            Cancelar
+          </button>
+        </div>
+      </form>
+    } @else {
+    <div class="grid lg:grid-cols-2 gap-4">
+      <!-- Contacto -->
+      <section class="card-base p-4 sm:p-5 flex flex-col gap-3">
+        <h2 class="text-headline-md text-on-surface">Contacto</h2>
+        <dl class="flex flex-col gap-2.5 text-sm">
+          <div class="flex justify-between gap-4">
+            <dt class="text-on-surface-variant">Responsable</dt>
+            <dd class="text-on-surface text-right">{{ g.responsable }}</dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-on-surface-variant">Correo</dt>
+            <dd class="text-on-surface text-right break-all">{{ g.correo }}</dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-on-surface-variant">Teléfono</dt>
+            <dd class="text-on-surface text-right">{{ g.telefono ?? '—' }}</dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-on-surface-variant">Ciudad</dt>
+            <dd class="text-on-surface text-right">{{ g.ciudad ?? '—' }}</dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-on-surface-variant">NIT</dt>
+            <dd class="text-on-surface text-right">{{ g.nit ?? '—' }}</dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-on-surface-variant">Alta</dt>
+            <dd class="text-on-surface text-right">{{ fecha(g.fecha_alta) }}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <!-- Configuración -->
+      <section class="card-base p-4 sm:p-5 flex flex-col gap-3">
+        <h2 class="text-headline-md text-on-surface">Configuración</h2>
+        <dl class="flex flex-col gap-2.5 text-sm">
+          <div class="flex justify-between gap-4">
+            <dt class="text-on-surface-variant">Zona horaria</dt>
+            <dd class="text-on-surface text-right font-mono text-xs">{{ g.zona_horaria }}</dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-on-surface-variant">Moneda</dt>
+            <dd class="text-on-surface text-right">{{ g.moneda }}</dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-on-surface-variant">Aviso de vencimiento</dt>
+            <dd class="text-on-surface text-right">{{ g.dias_aviso_vencimiento }} días antes</dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-on-surface-variant">Antipassback</dt>
+            <dd class="text-on-surface text-right">{{ g.minutos_antipassback }} min</dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-on-surface-variant">Última venta</dt>
+            <dd class="text-on-surface text-right">{{ instante(g.ultima_venta) }}</dd>
+          </div>
+        </dl>
+      </section>
+    </div>
+    }
+
+    <!-- Contrato -->
+    <section class="card-base p-4 sm:p-5 flex flex-col gap-3">
+      <h2 class="text-headline-md text-on-surface">Contrato</h2>
+      @if (g.suscripcion; as s) {
+        <dl class="grid sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
+          <div class="flex justify-between gap-4">
+            <dt class="text-on-surface-variant">Plan</dt>
+            <dd class="text-on-surface text-right">{{ s.plan_nombre }}</dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-on-surface-variant">Precio por sede</dt>
+            <dd class="text-on-surface text-right">
+              {{ dinero(s.precio_por_sede) }} {{ g.moneda }} / {{ s.ciclo === 'anual' ? 'año' : 'mes' }}
+            </dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-on-surface-variant">Inicio</dt>
+            <dd class="text-on-surface text-right">{{ fecha(s.fecha_inicio) }}</dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-on-surface-variant">Próximo corte</dt>
+            <dd class="text-on-surface text-right">{{ fecha(s.proximo_corte) }}</dd>
+          </div>
+        </dl>
+      } @else {
+        <p class="text-sm text-on-surface-variant">
+          Este gimnasio todavía no tiene una suscripción vigente. La facturación se gestionará
+          desde aquí en una entrega posterior.
+        </p>
+      }
+    </section>
+
+    <!-- Usuarios del gimnasio. Existe para poder rescatar a quien no puede
+         entrar, no para administrar personal ajeno. -->
+    @if (!editando()) {
+      <section class="card-base p-4 sm:p-5 flex flex-col gap-3">
+        <div>
+          <h2 class="text-headline-md text-on-surface">Usuarios</h2>
+          <p class="text-sm text-on-surface-variant mt-0.5">
+            Quién trabaja en este gimnasio. Desde aquí puedes devolverle el acceso a quien haya
+            perdido su contraseña.
+          </p>
+        </div>
+
+        @if (passwordGenerada(); as p) {
+          <div class="rounded-[10px] bg-primary-container p-4 flex flex-col gap-3">
+            <div class="text-on-primary-container">
+              <p class="font-semibold">Contraseña nueva de {{ p.usuario.nombre }}</p>
+              <p class="text-sm mt-0.5">
+                Se muestra <strong>una sola vez</strong>. La anterior ya no sirve y sus sesiones
+                abiertas se cerraron.
+              </p>
+            </div>
+            <dl class="flex flex-col gap-2">
+              <div>
+                <dt class="text-xs text-on-primary-container">Usuario</dt>
+                <dd class="font-mono text-on-primary-container break-all">{{ p.usuario.correo }}</dd>
+              </div>
+              <div>
+                <dt class="text-xs text-on-primary-container">Contraseña</dt>
+                <dd class="font-mono text-lg text-on-primary-container tracking-wide break-all">
+                  {{ p.password }}
+                </dd>
+              </div>
+            </dl>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" class="btn-primary" (click)="copiarPassword(p)">
+                <span class="material-symbols-outlined text-[20px]" aria-hidden="true">content_copy</span>
+                {{ copiadoPassword() ? 'Copiado' : 'Copiar' }}
+              </button>
+              <button type="button" class="btn-secondary" (click)="descartarPassword()">
+                Ya la anoté
+              </button>
+            </div>
+          </div>
+        }
+
+        @if (errorPassword()) {
+          <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">
+            {{ errorPassword() }}
+          </p>
+        }
+
+        @if (cargandoUsuarios()) {
+          <p class="text-sm text-on-surface-variant">Cargando usuarios…</p>
+        } @else if (usuarios().length === 0) {
+          <p class="text-sm text-on-surface-variant">No se pudieron cargar los usuarios.</p>
+        } @else {
+          <ul class="flex flex-col gap-2">
+            @for (u of usuarios(); track u.id) {
+              <li class="rounded-[10px] bg-surface-container-low px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="text-on-surface truncate">
+                    {{ u.nombre }}
+                    @if (!u.activo) {
+                      <span class="ml-1 rounded-full bg-surface-container px-2 py-0.5 text-[11px] text-on-surface-variant">
+                        Inactivo
+                      </span>
+                    }
+                  </p>
+                  <p class="text-xs text-on-surface-variant truncate">
+                    {{ u.correo }} · <span class="capitalize">{{ u.rol }}</span>
+                  </p>
+                </div>
+
+                @if (puedeGestionar()) {
+                  @if (usuarioARestablecer()?.id === u.id) {
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="text-sm text-danger-text">¿Restablecer su contraseña?</span>
+                      <button type="button" class="btn-danger" [disabled]="restableciendo()"
+                              (click)="confirmarRestablecer()">
+                        {{ restableciendo() ? 'Generando…' : 'Sí, restablecer' }}
+                      </button>
+                      <button type="button" class="btn-secondary" [disabled]="restableciendo()"
+                              (click)="cancelarRestablecer()">
+                        Cancelar
+                      </button>
+                    </div>
+                  } @else {
+                    <button type="button" class="btn-secondary shrink-0" (click)="pedirRestablecer(u)">
+                      <span class="material-symbols-outlined text-[20px]" aria-hidden="true">key</span>
+                      Restablecer contraseña
+                    </button>
+                  }
+                }
+              </li>
+            }
+          </ul>
+        }
+      </section>
+    }
+
+    <!-- Estado del gimnasio. Al final y separado del resto: no es una
+         preferencia más, es el interruptor que lo deja dentro o fuera. -->
+    @if (puedeGestionar() && !editando()) {
+      <section class="card-base p-4 sm:p-5 flex flex-col gap-3">
+        <div>
+          <h2 class="text-headline-md text-on-surface">Estado del gimnasio</h2>
+          <p class="text-sm text-on-surface-variant mt-0.5">
+            Ahora mismo: <strong>{{ etiquetaEstado(g.estado) }}</strong>.
+            {{ consecuenciaDe(g.estado) }}
+          </p>
+        </div>
+
+        @if (estadoElegido() === null) {
+          <div class="flex flex-wrap gap-2">
+            @for (e of opcionesEstado; track e) {
+              @if (e !== g.estado) {
+                <button
+                  type="button"
+                  class="rounded-[10px] border border-outline-variant px-3 py-2 text-sm text-on-surface-variant hover:bg-surface-container-low transition-colors"
+                  (click)="elegirEstado(e)"
+                >
+                  Pasar a {{ etiquetaEstado(e) }}
+                </button>
+              }
+            }
+          </div>
+        } @else {
+          <div
+            class="rounded-[10px] p-4 flex flex-col gap-3"
+            [class]="esDestructivo() ? 'bg-danger-bg' : 'bg-surface-container-low'"
+          >
+            <div [class]="esDestructivo() ? 'text-danger-text' : 'text-on-surface'">
+              <p class="font-semibold">
+                Pasar a {{ etiquetaEstado(estadoElegido()!) }}
+              </p>
+              <p class="text-sm mt-0.5">{{ consecuenciaDe(estadoElegido()!) }}</p>
+            </div>
+
+            <div>
+              <label for="confirmar" class="block text-sm font-medium text-on-surface mb-1">
+                Escribe <span class="font-mono">{{ g.subdominio }}</span> para confirmar
+              </label>
+              <input id="confirmar" type="text" class="field-input font-mono" [formControl]="confirmacion"
+                     autocomplete="off" />
+            </div>
+
+            @if (errorEstado()) {
+              <p class="text-sm text-danger-text">{{ errorEstado() }}</p>
+            }
+
+            <div class="flex flex-wrap gap-2">
+              <button
+                type="button"
+                [class]="esDestructivo() ? 'btn-danger' : 'btn-primary'"
+                [disabled]="cambiandoEstado() || confirmacion.value.trim() === ''"
+                (click)="confirmarEstado()"
+              >
+                {{ cambiandoEstado() ? 'Aplicando…' : 'Confirmar' }}
+              </button>
+              <button type="button" class="btn-secondary" [disabled]="cambiandoEstado()" (click)="cancelarCambioEstado()">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        }
+      </section>
+    }
+
+    @if (g.fecha_cancelacion) {
+      <section class="rounded-xl bg-danger-bg text-danger-text p-4 sm:p-5 flex flex-col gap-1">
+        <h2 class="font-semibold">Gimnasio cancelado</h2>
+        <p class="text-sm">Cancelado el {{ fecha(g.fecha_cancelacion) }}.</p>
+        @if (g.fecha_purga_datos) {
+          <p class="text-sm">Sus datos se eliminarán el {{ fecha(g.fecha_purga_datos) }}.</p>
+        }
+      </section>
+    }
+  </div>
+}

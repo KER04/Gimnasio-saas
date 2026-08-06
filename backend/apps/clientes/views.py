@@ -51,6 +51,7 @@ class ClienteViewSet(
         'update': 'clientes.gestionar',
         'partial_update': 'clientes.gestionar',
         'destroy': 'clientes.gestionar',
+        'restaurar': 'clientes.gestionar',
     }
     serializer_class = ClienteSerializer
 
@@ -65,11 +66,44 @@ class ClienteViewSet(
         VistaMembresiaEstado.EstadoCalculado.VENCIDA,
     }
 
+    #: Valores admitidos por ``?eliminados=`` en el listado. Es UN filtro más,
+    #: junto a ``estado`` y ``plan``: los eliminados no viven en una pantalla
+    #: aparte, se muestran en la misma lista y se acotan desde aquí.
+    _ELIMINADOS_EXCLUIR = 'excluir'
+    _ELIMINADOS_INCLUIR = 'incluir'
+    _ELIMINADOS_SOLO = 'solo'
+
+    def _modo_eliminados(self):
+        """Qué hacer con los clientes eliminados en esta petición.
+
+        Solo el LISTADO admite el filtro; ``restaurar`` necesita ver el
+        eliminado por definición. ``retrieve``/``update``/``destroy`` siguen
+        sin verlos: un cliente eliminado no se consulta ni se edita, primero
+        se restaura.
+
+        Un valor desconocido cae en el comportamiento por defecto en lugar de
+        dar 400: es un filtro de pantalla, y esconder de más es preferible a
+        romper el listado por una cadena mal escrita.
+        """
+        if self.action == 'restaurar':
+            return self._ELIMINADOS_INCLUIR
+        if self.action != 'list':
+            return self._ELIMINADOS_EXCLUIR
+        valor = self.request.query_params.get('eliminados', '').lower()
+        if valor in (self._ELIMINADOS_INCLUIR, self._ELIMINADOS_SOLO):
+            return valor
+        return self._ELIMINADOS_EXCLUIR
+
     def get_queryset(self):
         # Borrado lógico (Parte B3): un cliente eliminado desaparece de
         # listados/detalle/edición/borrado por defecto, pero su fila (y su
         # histórico de ventas, que referencia este id) sigue existiendo.
-        qs = Cliente.objects.filter(eliminado_en__isnull=True).select_related('sede_origen')
+        qs = Cliente.objects.select_related('sede_origen')
+        modo = self._modo_eliminados()
+        if modo == self._ELIMINADOS_EXCLUIR:
+            qs = qs.filter(eliminado_en__isnull=True)
+        elif modo == self._ELIMINADOS_SOLO:
+            qs = qs.filter(eliminado_en__isnull=False)
 
         if self.action == 'list':
             # Import perezoso: evita el ciclo de import entre `apps.clientes`
@@ -120,7 +154,27 @@ class ClienteViewSet(
                 # Búsqueda por nombre O cédula en el mismo parámetro (Parte
                 # B3), disponible también para el buscador del POS (Parte B1:
                 # este es el único endpoint de clientes que existe ahora).
-                qs = qs.filter(Q(nombre__icontains=buscar) | Q(cedula__icontains=buscar))
+                #
+                # Se busca PALABRA A PALABRA, exigiendo que todas aparezcan
+                # (AND), en vez de tratar el texto entero como una sola
+                # subcadena. Con `icontains` sobre la cadena completa,
+                # "Maria Diaz" no encontraba a "Maria Jose Diaz Toro" -- no
+                # es una subcadena literal suya -- y en recepción nadie
+                # teclea el nombre completo y en orden. Con una sola palabra
+                # el comportamiento es idéntico al de antes.
+                #
+                # `split()` sin argumentos ya colapsa espacios repetidos y
+                # descarta los extremos, así que "  maria   diaz " funciona.
+                #
+                # NO es insensible a acentos: "Maria" no encuentra a "María".
+                # Es una decisión tomada, no un descuido -- hacerlo exigiría
+                # instalar la extensión `unaccent` de PostgreSQL (disponible
+                # en el servidor pero no instalada) con un CREATE EXTENSION
+                # de superusuario, y se prefirió no tocar la configuración de
+                # la base por esto. Si algún día se instala, basta cambiar
+                # `__icontains` por `__unaccent__icontains` aquí.
+                for termino in buscar.split():
+                    qs = qs.filter(Q(nombre__icontains=termino) | Q(cedula__icontains=termino))
 
             estado = self.request.query_params.get('estado')
             if estado == 'sin_membresia':
@@ -149,6 +203,25 @@ class ClienteViewSet(
         cliente.eliminado_en = timezone.now()
         cliente.save(update_fields=['eliminado_en'])
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'])
+    def restaurar(self, request, pk=None):
+        """``POST /api/clientes/{id}/restaurar/`` (``clientes.gestionar``):
+        deshace el borrado lógico de ``destroy``.
+
+        Sin esto, ``destroy`` era un camino de ida: la fila seguía en la base
+        de datos pero ningún endpoint volvía a devolverla, así que un borrado
+        por error solo se arreglaba con un UPDATE a mano.
+
+        Restaurar un cliente que no estaba eliminado no es un error: la
+        respuesta es la misma (200 con la ficha) y el estado final el que se
+        pedía. Repetir la llamada tampoco cambia nada.
+        """
+        cliente = self.get_object()
+        if cliente.eliminado_en is not None:
+            cliente.eliminado_en = None
+            cliente.save(update_fields=['eliminado_en'])
+        return Response(self.get_serializer(cliente).data)
 
     @action(detail=True, methods=['get'])
     def membresias(self, request, pk=None):
@@ -181,11 +254,21 @@ class ClienteViewSet(
             .order_by('fecha_hora')
         )
 
+        # El número que ve el usuario es el `consecutivo` de la venta (único
+        # por sede), no el id interno: es el que aparece en el recibo. La
+        # vista `v_ventas_saldo` no lo trae, así que se resuelve de una sola
+        # consulta para todas las filas en vez de una por venta.
+        consecutivos = dict(
+            Venta.objects.filter(id__in=[v.venta_id for v in ventas_con_saldo])
+            .values_list('id', 'consecutivo')
+        )
+
         resultado = []
         total_adeudado = Decimal('0')
         for venta_saldo in ventas_con_saldo:
             resultado.append({
                 'venta_id': venta_saldo.venta_id,
+                'consecutivo': consecutivos.get(venta_saldo.venta_id),
                 'fecha_hora': venta_saldo.fecha_hora,
                 'total': venta_saldo.total,
                 'total_pagado': venta_saldo.total_pagado,

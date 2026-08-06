@@ -1,0 +1,381 @@
+<div class="flex flex-col gap-5">
+  <div class="rounded-xl bg-primary px-5 py-5 sm:px-6">
+    <h1 class="text-headline-lg-mobile sm:text-headline-lg text-on-primary">Reportes</h1>
+    <p class="mt-1 text-body-md text-primary-fixed">
+      Caja, facturación y productos
+      @if (nombreSede(); as sede) {
+        · {{ sede }}
+      }
+    </p>
+  </div>
+
+  <!-- Rango -->
+  <div class="card-base p-4 flex flex-col gap-3">
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div>
+        <label for="desde" class="block text-sm font-medium text-on-surface mb-1">Desde</label>
+        <input id="desde" type="date" class="field-input" [formControl]="desde" />
+      </div>
+      <div>
+        <label for="hasta" class="block text-sm font-medium text-on-surface mb-1">Hasta</label>
+        <input id="hasta" type="date" class="field-input" [formControl]="hasta" />
+      </div>
+      <div class="sm:col-span-2 flex items-end gap-2">
+        <button type="button" class="btn-primary" (click)="cargar()">
+          <span class="material-symbols-outlined" aria-hidden="true">search</span>
+          Consultar
+        </button>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap gap-2">
+      <button type="button" class="rounded-full border border-outline-variant px-3 py-1.5 text-xs text-on-surface-variant hover:bg-surface-container-low" (click)="rangoHoy()">Hoy</button>
+      <button type="button" class="rounded-full border border-outline-variant px-3 py-1.5 text-xs text-on-surface-variant hover:bg-surface-container-low" (click)="rangoMes()">Este mes</button>
+      <button type="button" class="rounded-full border border-outline-variant px-3 py-1.5 text-xs text-on-surface-variant hover:bg-surface-container-low" (click)="rangoTodo()">Todo</button>
+    </div>
+  </div>
+
+  @if (error()) {
+    <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ error() }}</p>
+  }
+
+  <!-- Solo se vacía la pantalla en la PRIMERA carga. En las siguientes se
+       mantiene lo anterior y se avisa con una franja: sustituir todo por
+       "Calculando…" encogía la página y el scroll saltaba al principio. -->
+  @if (cargandoPrimeraVez()) {
+    <div class="card-base p-8 text-center text-sm text-on-surface-variant">Calculando…</div>
+  } @else {
+    @if (cargando()) {
+      <p class="rounded-[10px] bg-surface-container px-3 py-2 text-xs text-on-surface-variant">Actualizando…</p>
+    }
+
+    <!-- ===== Resumen ===== -->
+    @if (ventas(); as v) {
+      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="card-base p-5">
+          <p class="text-label-sm uppercase tracking-wider text-on-surface-variant">Facturado</p>
+          <p class="mt-1 font-display text-2xl font-bold text-on-surface">{{ dinero(v.facturado) }}</p>
+          <p class="mt-1 text-xs text-on-surface-variant">Lo que se vendió · {{ v.numero_ventas }} ventas</p>
+        </div>
+
+        <div class="card-base p-5">
+          <p class="text-label-sm uppercase tracking-wider text-on-surface-variant">Cobrado</p>
+          <p class="mt-1 font-display text-2xl font-bold text-success-text">{{ dinero(v.cobrado) }}</p>
+          <p class="mt-1 text-xs text-on-surface-variant">Lo que entró en caja</p>
+        </div>
+
+        <div class="card-base p-5">
+          <p class="text-label-sm uppercase tracking-wider text-on-surface-variant">Diferencia</p>
+          <p class="mt-1 font-display text-2xl font-bold" [class]="hayPorCobrar() ? 'text-warning-text' : 'text-on-surface'">
+            {{ dinero(v.diferencia) }}
+          </p>
+          <!-- La diferencia puede ser negativa y no es un error: se explica
+               en vez de dejar al usuario pensando que la cuenta falla. -->
+          <p class="mt-1 text-xs text-on-surface-variant">
+            @if (hayPorCobrar()) {
+              Vendido y aún no cobrado en este rango
+            } @else {
+              Incluye abonos de ventas anteriores al rango
+            }
+          </p>
+        </div>
+
+        <div class="card-base p-5">
+          <p class="text-label-sm uppercase tracking-wider text-on-surface-variant">Descuentos</p>
+          <p class="mt-1 font-display text-2xl font-bold text-on-surface">{{ dinero(v.descuentos) }}</p>
+          <p class="mt-1 text-xs text-on-surface-variant">Concedidos sobre el subtotal</p>
+        </div>
+      </div>
+
+      <!-- Aquí vivía "Ventas por estado de cobro". Se retiró: su importe era
+           lo FACTURADO en cada estado, no lo adeudado, y hacía falta un aviso
+           explicando cómo NO leerlo. "Quién debe" da el mismo recuento con el
+           dato que de verdad sirve: quién, cuánto y de qué venta. -->
+    }
+
+    <!-- ===== Ganancias ===== -->
+    @if (utilidad(); as u) {
+      <div class="card-base overflow-hidden">
+        <div class="bg-surface-container-highest px-4 py-3">
+          <p class="text-sm font-semibold text-on-surface">Ganancias</p>
+          <!-- Decir el criterio evita la lectura errónea más cara: confundir
+               utilidad con dinero en caja. -->
+          <p class="text-xs text-on-surface-variant">
+            Cuenta <strong>al vender</strong>, se haya cobrado o no: el producto ya salió del inventario, así
+            que su costo ya se cargó. Solo los productos tienen costo registrado.
+          </p>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 p-4">
+          <div>
+            <p class="text-label-sm uppercase tracking-wider text-on-surface-variant">Ingresos por productos</p>
+            <p class="mt-1 font-display text-xl font-bold text-on-surface">{{ dinero(u.productos.ingresos) }}</p>
+          </div>
+          <div>
+            <p class="text-label-sm uppercase tracking-wider text-on-surface-variant">Costo de lo vendido</p>
+            <p class="mt-1 font-display text-xl font-bold text-danger-text">− {{ dinero(u.productos.costo) }}</p>
+          </div>
+          <div>
+            <p class="text-label-sm uppercase tracking-wider text-on-surface-variant">Utilidad en productos</p>
+            <p class="mt-1 font-display text-xl font-bold"
+              [class]="esNegativo(u.productos.utilidad) ? 'text-danger-text' : 'text-success-text'">
+              {{ dinero(u.productos.utilidad) }}
+            </p>
+            <p class="mt-1 text-xs text-on-surface-variant">Margen {{ u.productos.margen_pct }}%</p>
+          </div>
+          <div>
+            <p class="text-label-sm uppercase tracking-wider text-on-surface-variant">Ingresos por planes</p>
+            <p class="mt-1 font-display text-xl font-bold text-on-surface">{{ dinero(u.planes.ingresos) }}</p>
+            <p class="mt-1 text-xs text-on-surface-variant">Sin costo asociado</p>
+          </div>
+        </div>
+
+        <!-- Lo vendido a crédito ya cuenta arriba. Decir cuánto sigue sin
+             cobrar es lo que impide leer la utilidad como dinero disponible. -->
+        @if (!esCero(u.pendiente_de_cobro)) {
+          <div class="mx-4 mb-3 rounded-[10px] bg-surface-container px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+            <span class="text-sm text-on-surface-variant">
+              De lo vendido en este periodo, sigue <strong>sin cobrar</strong>
+            </span>
+            <span class="font-display text-lg font-bold text-warning-text">
+              {{ dinero(u.pendiente_de_cobro) }}
+            </span>
+          </div>
+        }
+
+        <!-- La advertencia que evita leer mal la cifra: los planes no son
+             ganancia limpia, su costo son los gastos operativos. -->
+        <div class="mx-4 mb-4 rounded-[10px] bg-warning-bg text-warning-text px-3 py-2 text-xs flex items-start gap-2">
+          <span class="material-symbols-outlined shrink-0 text-base" aria-hidden="true">info</span>
+          <span>
+            Los ingresos por planes <strong>no son ganancia</strong>: lo que cuesta prestarlos son el alquiler,
+            el personal y los servicios.
+            @if (u.gastos.registrados === 0) {
+              Todavía no hay ningún gasto registrado, así que la utilidad NETA del gimnasio no se puede
+              calcular aún.
+            } @else {
+              Gastos del periodo: <strong>{{ dinero(u.gastos.total) }}</strong> en {{ u.gastos.registrados }}
+              registro(s).
+            }
+          </span>
+        </div>
+
+        @if (u.detalle.length > 0) {
+          <div class="overflow-x-auto border-t border-outline-variant">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-surface-container-low text-left">
+                  <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Producto</th>
+                  <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Unidades</th>
+                  <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Ingresos</th>
+                  <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Costo</th>
+                  <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Utilidad</th>
+                  <th class="px-4 py-3 text-right text-label-sm uppercase tracking-wider text-on-surface-variant">Margen</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-outline-variant">
+                @for (p of u.detalle; track p.producto_id) {
+                  <tr>
+                    <td class="px-4 py-3 font-medium text-on-surface">{{ p.producto_nombre }}</td>
+                    <td class="px-4 py-3 text-on-surface-variant">{{ cantidad(p.unidades) }}</td>
+                    <td class="px-4 py-3 text-on-surface-variant">{{ dinero(p.ingresos) }}</td>
+                    <td class="px-4 py-3 text-on-surface-variant">{{ dinero(p.costo) }}</td>
+                    <td class="px-4 py-3 font-semibold"
+                      [class]="esNegativo(p.utilidad) ? 'text-danger-text' : 'text-success-text'">
+                      {{ dinero(p.utilidad) }}
+                    </td>
+                    <td class="px-4 py-3 text-right"
+                      [class]="esNegativo(p.utilidad) ? 'text-danger-text font-semibold' : 'text-on-surface-variant'">
+                      {{ p.margen_pct }}%
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- ===== Cartera: quién debe ===== -->
+    @if (cartera(); as c) {
+      <div class="card-base overflow-hidden">
+        <!-- Cabecera de sección en tono neutro, el mismo que usan las
+             cabeceras de tabla. El morado queda reservado al banner de la
+             pantalla: si todas las secciones lo llevaran, competirían con él
+             y se perdería la jerarquía. -->
+        <div class="bg-surface-container-highest px-4 py-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="text-sm font-semibold text-on-surface">Quién debe</p>
+            <p class="font-display text-lg font-bold text-warning-text">{{ dinero(c.totales.saldo) }}</p>
+          </div>
+          <p class="text-xs text-on-surface-variant">
+            {{ c.totales.clientes }} cliente(s) · {{ c.totales.ventas }} venta(s) con saldo.
+            No depende del rango de fechas: una deuda sigue viva hasta que se cobra.
+          </p>
+        </div>
+
+        @if (c.deudores.length === 0) {
+          <p class="px-4 py-8 text-center text-sm text-on-surface-variant">
+            Nadie debe nada. Todas las ventas están cobradas.
+          </p>
+        } @else {
+          <ul class="divide-y divide-outline-variant">
+            @for (d of c.deudores; track d.cliente_id) {
+              <li class="px-4 py-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <p class="font-medium text-on-surface">{{ d.cliente_nombre }}</p>
+                  <div class="flex items-center gap-3">
+                    <p class="font-semibold text-warning-text">{{ dinero(d.saldo_total) }}</p>
+                    @if (d.cliente_id !== null) {
+                      <button type="button" class="btn-outlined" (click)="irACobrar(d.cliente_id)">
+                        <span class="material-symbols-outlined" aria-hidden="true">payments</span>
+                        Cobrar
+                      </button>
+                    }
+                  </div>
+                </div>
+                <ul class="mt-2 flex flex-col gap-1">
+                  @for (v of d.ventas; track v.venta_id) {
+                    <li class="flex flex-wrap items-center justify-between gap-2 rounded-[10px] bg-surface-container-low px-3 py-2 text-xs">
+                      <span class="text-on-surface-variant">
+                        Venta #{{ v.consecutivo }} · {{ etiquetaPeriodo(v.fecha_hora.slice(0, 10)) }}
+                      </span>
+                      <span class="text-on-surface-variant">
+                        {{ dinero(v.total) }} · pagado {{ dinero(v.total_pagado) }} ·
+                        <strong class="text-warning-text">falta {{ dinero(v.saldo) }}</strong>
+                      </span>
+                    </li>
+                  }
+                </ul>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    }
+
+    <!-- ===== Caja por periodo ===== -->
+    @if (caja(); as c) {
+      <div class="card-base overflow-hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 bg-surface-container-highest px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-on-surface">Dinero recibido</p>
+            <p class="text-xs text-on-surface-variant">
+              Caja real: pagos efectivamente recibidos, en la zona horaria del gimnasio.
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            @if (cargandoCaja()) {
+              <span class="text-xs text-on-surface-variant">Actualizando…</span>
+            }
+            <button
+              type="button"
+              [disabled]="cargandoCaja()"
+              [class]="agrupar() === 'dia' ? 'rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-on-primary' : 'rounded-full border border-outline-variant px-3 py-1.5 text-xs text-on-surface-variant hover:bg-surface-container-low'"
+              (click)="cambiarAgrupacion('dia')"
+            >Por día</button>
+            <button
+              type="button"
+              [disabled]="cargandoCaja()"
+              [class]="agrupar() === 'mes' ? 'rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-on-primary' : 'rounded-full border border-outline-variant px-3 py-1.5 text-xs text-on-surface-variant hover:bg-surface-container-low'"
+              (click)="cambiarAgrupacion('mes')"
+            >Por mes</button>
+          </div>
+        </div>
+
+        @if (c.periodos.length === 0) {
+          <p class="px-4 py-8 text-center text-sm text-on-surface-variant">Sin movimientos de caja en este rango.</p>
+        } @else {
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-surface-container-highest/50 text-left">
+                  <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Periodo</th>
+                  <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Efectivo</th>
+                  <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Transferencia</th>
+                  <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Tarjeta</th>
+                  <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-outline-variant">
+                @for (p of c.periodos; track p.periodo) {
+                  <tr>
+                    <td class="px-4 py-3 text-on-surface">{{ etiquetaPeriodo(p.periodo) }}</td>
+                    <td class="px-4 py-3 text-on-surface-variant">{{ dinero(p.efectivo) }}</td>
+                    <td class="px-4 py-3 text-on-surface-variant">{{ dinero(p.transferencia) }}</td>
+                    <td class="px-4 py-3 text-on-surface-variant">{{ dinero(p.tarjeta) }}</td>
+                    <td class="px-4 py-3 text-right font-semibold text-primary">{{ dinero(p.total_recibido) }}</td>
+                  </tr>
+                }
+              </tbody>
+              <tfoot>
+                <tr class="border-t-2 border-outline-variant bg-surface-container-low">
+                  <td class="px-4 py-3 font-semibold text-on-surface">Total</td>
+                  <td class="px-4 py-3 text-on-surface">{{ dinero(c.totales.efectivo) }}</td>
+                  <td class="px-4 py-3 text-on-surface">{{ dinero(c.totales.transferencia) }}</td>
+                  <td class="px-4 py-3 text-on-surface">{{ dinero(c.totales.tarjeta) }}</td>
+                  <td class="px-4 py-3 text-right font-display text-lg font-bold text-primary">
+                    {{ dinero(c.totales.total_recibido) }}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- ===== Productos ===== -->
+    @if (productos(); as pr) {
+      <div class="card-base overflow-hidden">
+        <div class="bg-surface-container-highest px-4 py-3">
+          <p class="text-sm font-semibold text-on-surface">Productos vendidos</p>
+          <p class="text-xs text-on-surface-variant">
+            Importe BRUTO, antes del descuento de la venta (el descuento vive en la venta, no en la línea).
+            Las existencias son de hoy y de esta sede.
+          </p>
+        </div>
+
+        @if (pr.productos.length === 0) {
+          <p class="px-4 py-8 text-center text-sm text-on-surface-variant">
+            No se vendió ningún producto en este rango.
+          </p>
+        } @else {
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-surface-container-highest/50 text-left">
+                  <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Producto</th>
+                  <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Unidades</th>
+                  <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Importe</th>
+                  <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant text-right">Quedan</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-outline-variant">
+                @for (p of pr.productos; track p.producto_id) {
+                  <tr>
+                    <td class="px-4 py-3 font-medium text-on-surface">{{ p.producto_nombre }}</td>
+                    <td class="px-4 py-3 text-on-surface-variant">{{ cantidad(p.unidades) }}</td>
+                    <td class="px-4 py-3 font-semibold text-primary">{{ dinero(p.importe) }}</td>
+                    <td class="px-4 py-3 text-right text-on-surface">{{ cantidad(p.stock_actual) }}</td>
+                  </tr>
+                }
+              </tbody>
+              <tfoot>
+                <tr class="border-t-2 border-outline-variant bg-surface-container-low">
+                  <td class="px-4 py-3 font-semibold text-on-surface">
+                    Total · {{ pr.totales.productos_distintos }} producto(s)
+                  </td>
+                  <td class="px-4 py-3 text-on-surface">{{ cantidad(pr.totales.unidades) }}</td>
+                  <td class="px-4 py-3 font-display text-lg font-bold text-primary">{{ dinero(pr.totales.importe) }}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        }
+      </div>
+    }
+  }
+</div>

@@ -1,0 +1,175 @@
+<div class="flex flex-col gap-5">
+  <!-- Cabecera: mismo bloque morado sólido que el resto de la aplicación. -->
+  <div class="rounded-xl bg-primary px-5 py-5 sm:px-6 flex flex-wrap items-center justify-between gap-4">
+    <div class="min-w-0">
+      <h1 class="text-headline-lg-mobile sm:text-headline-lg text-on-primary">Gimnasios</h1>
+      <p class="mt-1 text-body-md text-primary-fixed">
+        Los gimnasios que tienen contratada la plataforma.
+      </p>
+    </div>
+    <div class="flex items-center gap-5 shrink-0">
+      @if (puedeGestionar()) {
+        <a routerLink="/plataforma/gimnasios/nuevo" class="btn-inverted">
+          <span class="material-symbols-outlined" aria-hidden="true">add</span>
+          Nuevo gimnasio
+        </a>
+      }
+      <div class="text-right">
+        <p class="text-headline-md text-on-primary">{{ count() }}</p>
+        <p class="text-xs text-primary-fixed">
+          {{ count() === 1 ? 'gimnasio' : 'gimnasios' }}
+        </p>
+      </div>
+      <div class="text-right">
+        <p class="text-headline-md text-on-primary">{{ clientesEnPagina().toLocaleString('es-CO') }}</p>
+        <!-- Se rotula "en esta página" porque es exactamente eso: sumar toda
+             la cartera necesitaría un endpoint de agregados que no existe. -->
+        <p class="text-xs text-primary-fixed">clientes en esta página</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-base p-4 flex flex-col sm:flex-row gap-3">
+    <div class="relative flex-1">
+      <span
+        class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant"
+        aria-hidden="true"
+      >search</span>
+      <input
+        type="search"
+        inputmode="search"
+        class="field-search"
+        placeholder="Buscar por nombre, subdominio o responsable…"
+        [formControl]="buscar"
+        aria-label="Buscar gimnasio"
+      />
+    </div>
+
+    <select class="field-input sm:w-52" [formControl]="estado" aria-label="Filtrar por estado">
+      @for (opcion of opcionesEstado; track opcion.valor) {
+        <option [value]="opcion.valor">{{ opcion.etiqueta }}</option>
+      }
+    </select>
+  </div>
+
+  @if (error()) {
+    <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ error() }}</p>
+  }
+
+  @if (cargando()) {
+    <div class="card-base p-8 flex items-center justify-center text-on-surface-variant text-sm">
+      Cargando gimnasios…
+    </div>
+  } @else if (gimnasios().length === 0) {
+    <div class="card-base p-8 flex flex-col items-center justify-center text-center gap-1">
+      @if (hayFiltro()) {
+        <p class="font-medium text-on-surface">Ningún gimnasio coincide con los filtros</p>
+        <p class="text-sm text-on-surface-variant">Prueba con otro nombre o cambia el estado.</p>
+      } @else {
+        <p class="font-medium text-on-surface">Todavía no hay gimnasios</p>
+        <p class="text-sm text-on-surface-variant">
+          Se dan de alta desde el servidor, con el comando <code>crear_tenant</code>.
+        </p>
+      }
+    </div>
+  } @else {
+    <div class="card-base overflow-hidden flex flex-col">
+      <!-- Tabla en escritorio -->
+      <div class="hidden md:block overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-surface-container-highest/50 text-left">
+              <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Gimnasio</th>
+              <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Estado</th>
+              <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant text-right">Sedes</th>
+              <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant text-right">Usuarios</th>
+              <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant text-right">Clientes</th>
+              <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant text-right">Activas</th>
+              <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Actividad</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-outline-variant">
+            @for (g of gimnasios(); track g.uuid_publico) {
+              <tr class="cursor-pointer hover:bg-surface-container-low" (click)="verFicha(g)">
+                <td class="px-4 py-3">
+                  <div class="flex items-center gap-3">
+                    <span
+                      class="flex items-center justify-center size-9 rounded-full bg-primary-container text-on-primary-container font-semibold text-xs shrink-0"
+                      aria-hidden="true"
+                    >
+                      {{ iniciales(g.nombre_comercial) }}
+                    </span>
+                    <div class="min-w-0">
+                      <p class="font-medium text-on-surface truncate">{{ g.nombre_comercial }}</p>
+                      <p class="text-xs text-on-surface-variant font-mono">{{ g.subdominio }}</p>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-4 py-3">
+                  <span [class]="claseEstado(g.estado)">{{ etiquetaEstado(g.estado) }}</span>
+                </td>
+                <td class="px-4 py-3 text-right text-on-surface-variant">{{ numero(g.sedes) }}</td>
+                <td class="px-4 py-3 text-right text-on-surface-variant">{{ numero(g.usuarios) }}</td>
+                <td class="px-4 py-3 text-right text-on-surface">{{ numero(g.clientes) }}</td>
+                <td class="px-4 py-3 text-right text-on-surface-variant">{{ numero(g.membresias_activas) }}</td>
+                <td class="px-4 py-3 text-on-surface-variant">{{ actividad(g.ultima_venta) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Tarjetas por debajo de md -->
+      <div class="md:hidden flex flex-col divide-y divide-outline-variant">
+        @for (g of gimnasios(); track g.uuid_publico) {
+          <div class="p-4 flex flex-col gap-3" (click)="verFicha(g)">
+            <div class="flex items-start gap-3">
+              <span
+                class="flex items-center justify-center size-10 rounded-full bg-primary-container text-on-primary-container font-semibold text-sm shrink-0"
+                aria-hidden="true"
+              >
+                {{ iniciales(g.nombre_comercial) }}
+              </span>
+              <div class="flex-1 min-w-0">
+                <p class="font-medium text-on-surface truncate">{{ g.nombre_comercial }}</p>
+                <p class="text-xs font-mono text-on-surface-variant">{{ g.subdominio }}</p>
+              </div>
+              <span [class]="claseEstado(g.estado)" class="shrink-0">{{ etiquetaEstado(g.estado) }}</span>
+            </div>
+            <div class="grid grid-cols-4 gap-2 text-center">
+              <div>
+                <p class="text-sm text-on-surface">{{ numero(g.sedes) }}</p>
+                <p class="text-[11px] text-on-surface-variant">Sedes</p>
+              </div>
+              <div>
+                <p class="text-sm text-on-surface">{{ numero(g.usuarios) }}</p>
+                <p class="text-[11px] text-on-surface-variant">Usuarios</p>
+              </div>
+              <div>
+                <p class="text-sm text-on-surface">{{ numero(g.clientes) }}</p>
+                <p class="text-[11px] text-on-surface-variant">Clientes</p>
+              </div>
+              <div>
+                <p class="text-sm text-on-surface">{{ numero(g.membresias_activas) }}</p>
+                <p class="text-[11px] text-on-surface-variant">Activas</p>
+              </div>
+            </div>
+            <p class="text-xs text-on-surface-variant">Última venta: {{ actividad(g.ultima_venta) }}</p>
+          </div>
+        }
+      </div>
+
+      <div class="border-t border-outline-variant bg-surface-container-low px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-sm text-on-surface-variant">
+        <p>Mostrando {{ desde() }}–{{ hasta() }} de {{ count() }}</p>
+        <div class="flex items-center gap-2">
+          <button type="button" class="btn-secondary" [disabled]="!previous()" (click)="paginaAnterior()">
+            Anterior
+          </button>
+          <button type="button" class="btn-secondary" [disabled]="!next()" (click)="paginaSiguiente()">
+            Siguiente
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+</div>

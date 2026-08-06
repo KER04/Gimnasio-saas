@@ -1,0 +1,556 @@
+<div class="flex flex-col gap-5">
+  <div class="rounded-xl bg-primary px-5 py-5 sm:px-6 flex flex-wrap items-center justify-between gap-4">
+    <div class="min-w-0">
+      <h1 class="text-headline-lg-mobile sm:text-headline-lg text-on-primary">Inventario</h1>
+      <p class="mt-1 text-body-md text-primary-fixed">
+        Catálogo de productos y existencias
+        @if (nombreSede(); as sede) {
+          de {{ sede }}
+        }.
+      </p>
+    </div>
+    @if (puedeGestionar()) {
+      <div class="flex flex-wrap gap-2">
+        <button type="button" class="btn-inverted shrink-0" (click)="abrirCategorias()">
+          <span class="material-symbols-outlined" aria-hidden="true">sell</span>
+          Categorías
+        </button>
+        <button type="button" class="btn-inverted shrink-0" (click)="abrirCompra()">
+          <span class="material-symbols-outlined" aria-hidden="true">local_shipping</span>
+          Registrar compra
+        </button>
+        <button type="button" class="btn-inverted shrink-0" (click)="abrirCreacion()">
+          <span class="material-symbols-outlined" aria-hidden="true">add</span>
+          Nuevo producto
+        </button>
+      </div>
+    }
+  </div>
+
+  @if (sedeId() === null) {
+    <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">
+      Tu usuario no tiene una sede asignada, así que no se pueden mostrar existencias.
+    </p>
+  } @else {
+    @if (error()) {
+      <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ error() }}</p>
+    }
+
+    <!-- ===== Panel de producto ===== -->
+    @if (panelProducto()) {
+      <div class="card-base p-4 sm:p-5 flex flex-col gap-4">
+        <div class="flex items-start justify-between gap-2">
+          <h2 class="text-headline-md text-on-surface">
+            {{ productoEditando() ? 'Editar producto' : 'Nuevo producto' }}
+          </h2>
+          <button type="button" class="btn-icon" aria-label="Cerrar" (click)="cerrarPaneles()">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          </button>
+        </div>
+
+        <form class="flex flex-col gap-4" [formGroup]="formProducto" (ngSubmit)="guardarProducto()" novalidate>
+          <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div class="sm:col-span-2 lg:col-span-1">
+              <label for="nombre" class="block text-sm font-medium text-on-surface mb-1">Nombre *</label>
+              <input id="nombre" type="text" class="field-input" formControlName="nombre" />
+              @if (formProducto.controls.nombre.invalid && formProducto.controls.nombre.touched) {
+                <p class="mt-1 text-xs text-danger-text">El nombre es obligatorio.</p>
+              }
+              @if (errorDe('nombre'); as e) { <p class="mt-1 text-xs text-danger-text">{{ e }}</p> }
+            </div>
+
+            <div>
+              <label for="categoria" class="block text-sm font-medium text-on-surface mb-1">Categoría *</label>
+              <select id="categoria" class="field-input" formControlName="categoria_producto">
+                <option value="">Elige una…</option>
+                @for (c of categoriasParaElegir(); track c.id) {
+                  <option [value]="c.id">{{ c.nombre }}{{ c.activa ? '' : ' (dada de baja)' }}</option>
+                }
+              </select>
+              @if (formProducto.controls.categoria_producto.invalid && formProducto.controls.categoria_producto.touched) {
+                <p class="mt-1 text-xs text-danger-text">Elige una categoría.</p>
+              }
+            </div>
+
+            <div>
+              <label for="precio" class="block text-sm font-medium text-on-surface mb-1">Precio de venta *</label>
+              <!-- `type="text"`, NO `type="number"`: ver precio.util.ts. -->
+              <input id="precio" type="text" inputmode="decimal" autocomplete="off" class="field-input" formControlName="precio_venta" />
+              <p class="mt-1 text-xs text-on-surface-variant">Lo que paga el cliente.</p>
+              @if (formProducto.controls.precio_venta.invalid && formProducto.controls.precio_venta.touched) {
+                <p class="mt-1 text-xs text-danger-text">Indica un importe válido.</p>
+              }
+              @if (errorDe('precio_venta'); as e) { <p class="mt-1 text-xs text-danger-text">{{ e }}</p> }
+            </div>
+
+            @if (puedeVerCostos()) {
+              <div>
+                <label for="costo" class="block text-sm font-medium text-on-surface mb-1">Costo de compra</label>
+                <input id="costo" type="text" inputmode="decimal" autocomplete="off" class="field-input" formControlName="costo" />
+                <p class="mt-1 text-xs text-on-surface-variant">
+                  Lo que te cuesta a ti una unidad. La diferencia con el precio es tu ganancia.
+                </p>
+              </div>
+            }
+
+            <div>
+              <label for="marca" class="block text-sm font-medium text-on-surface mb-1">Marca</label>
+              <input id="marca" type="text" class="field-input" formControlName="marca" />
+            </div>
+
+            <div>
+              <label for="presentacion" class="block text-sm font-medium text-on-surface mb-1">Presentación</label>
+              <input id="presentacion" type="text" class="field-input" placeholder="Ej. 1 kg, 500 ml" formControlName="presentacion" />
+            </div>
+
+            <div>
+              <label for="minimo" class="block text-sm font-medium text-on-surface mb-1">Stock mínimo</label>
+              <input id="minimo" type="text" inputmode="numeric" class="field-input" placeholder="0" formControlName="stock_minimo" />
+              <p class="mt-1 text-xs text-on-surface-variant">Avisa cuando las existencias bajen de aquí.</p>
+            </div>
+
+            <!-- Solo al crear: en edición, tocar la ficha no debe mover
+                 existencias. -->
+            @if (!productoEditando()) {
+              <div>
+                <label for="inicial" class="block text-sm font-medium text-on-surface mb-1">Existencia inicial</label>
+                <input id="inicial" type="text" inputmode="numeric" autocomplete="off" class="field-input" placeholder="0" formControlName="existencia_inicial" />
+                <p class="mt-1 text-xs text-on-surface-variant">
+                  Unidades con las que arranca. Se registra como una entrada por compra en el kardex.
+                </p>
+              </div>
+            }
+          </div>
+
+          <label class="flex items-center gap-2.5 text-sm text-on-surface">
+            <input type="checkbox" class="size-4" formControlName="activo" />
+            Producto activo (disponible en el punto de venta)
+          </label>
+
+          <!-- Aviso, no bloqueo: vender por debajo de costo puede ser una
+               liquidación deliberada. Pero lo normal es un cero de más, y ese
+               error se copia al kardex y a la utilidad de cada venta, donde
+               ya no hay forma de corregirlo. -->
+          @if (costoSuperaPrecio()) {
+            <p class="rounded-[10px] bg-warning-bg text-warning-text px-3 py-2 text-sm flex items-start gap-2">
+              <span class="material-symbols-outlined shrink-0" aria-hidden="true">warning</span>
+              <span>
+                El costo es <strong>mayor</strong> que el precio de venta: perderías dinero en cada unidad.
+                Revisa que no sobre un cero. Si es una liquidación a propósito, puedes continuar.
+              </span>
+            </p>
+          }
+
+          <p class="rounded-[10px] bg-surface-container px-3 py-2 text-xs text-on-surface-variant">
+            @if (productoEditando()) {
+              Las existencias no se editan aquí: se mueven con una entrada o un ajuste, para que el libro de
+              movimientos y el stock nunca puedan contradecirse.
+            } @else {
+              La existencia inicial no se escribe como un dato suelto: se registra como una entrada en el
+              kardex, para que siempre se pueda responder de dónde salió cada unidad.
+            }
+          </p>
+
+          <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+            <button type="button" class="btn-outlined w-full sm:w-auto" (click)="cerrarPaneles()">Cancelar</button>
+            <button type="submit" class="btn-primary w-full sm:w-auto" [disabled]="guardando()">
+              {{ guardando() ? 'Guardando…' : 'Guardar' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    }
+
+    @if (resumenCompra(); as resumen) {
+      <p class="rounded-[10px] bg-success-bg text-success-text text-sm px-3 py-2">{{ resumen }}</p>
+    }
+
+    <!-- ===== Compra en lote: "llegó el pedido" ===== -->
+    @if (panelCompra()) {
+      <div class="card-base p-4 sm:p-5 flex flex-col gap-4">
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <h2 class="text-headline-md text-on-surface">Registrar compra</h2>
+            <p class="text-xs text-on-surface-variant mt-0.5">
+              Añade todos los productos del pedido y regístralos de una vez.
+            </p>
+          </div>
+          <button type="button" class="btn-icon" aria-label="Cerrar" (click)="cerrarPaneles()">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          </button>
+        </div>
+
+        @if (errorCompra()) {
+          <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ errorCompra() }}</p>
+        }
+
+        <div class="flex flex-col sm:flex-row gap-2">
+          <select class="field-input sm:flex-1" [formControl]="productoACompra" aria-label="Producto a añadir">
+            <option value="">Elige un producto…</option>
+            @for (p of productos(); track p.id) {
+              <option [value]="p.id">{{ p.nombre }}</option>
+            }
+          </select>
+          <button type="button" class="btn-outlined shrink-0" [disabled]="productoACompra.value === ''" (click)="agregarLineaCompra()">
+            <span class="material-symbols-outlined" aria-hidden="true">add</span>
+            Añadir
+          </button>
+        </div>
+
+        @if (lineasCompra().length === 0) {
+          <p class="rounded-[10px] bg-surface-container px-3 py-6 text-center text-sm text-on-surface-variant">
+            Aún no has añadido productos al pedido.
+          </p>
+        } @else {
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left">
+                  <th class="py-2 pr-2 text-label-sm uppercase tracking-wider text-on-surface-variant">Producto</th>
+                  <th class="py-2 pr-2 text-label-sm uppercase tracking-wider text-on-surface-variant">Cantidad</th>
+                  @if (puedeVerCostos()) {
+                    <th class="py-2 pr-2 text-label-sm uppercase tracking-wider text-on-surface-variant">Costo unitario</th>
+                  }
+                  <th class="py-2 text-right text-label-sm uppercase tracking-wider text-on-surface-variant">Quitar</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-outline-variant">
+                @for (l of lineasCompra(); track l.producto.id) {
+                  <tr>
+                    <td class="py-2 pr-2 text-on-surface">{{ l.producto.nombre }}</td>
+                    <td class="py-2 pr-2">
+                      <input
+                        type="text"
+                        inputmode="numeric"
+                        class="field-input w-24"
+                        [value]="l.cantidad"
+                        (input)="cambiarCantidadCompra(l, $any($event.target).value)"
+                        [attr.aria-label]="'Cantidad de ' + l.producto.nombre"
+                      />
+                    </td>
+                    @if (puedeVerCostos()) {
+                      <td class="py-2 pr-2">
+                        <!-- `type="text"`, NO `type="number"`: ver precio.util.ts. -->
+                        <input
+                          type="text"
+                          inputmode="decimal"
+                          class="field-input w-32"
+                          [value]="l.costoUnitario"
+                          (input)="cambiarCostoCompra(l, $any($event.target).value)"
+                          [attr.aria-label]="'Costo unitario de ' + l.producto.nombre"
+                        />
+                      </td>
+                    }
+                    <td class="py-2 text-right">
+                      <button type="button" class="btn-icon" [attr.aria-label]="'Quitar ' + l.producto.nombre" (click)="quitarLineaCompra(l)">
+                        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          @if (puedeVerCostos()) {
+            <div class="flex justify-between rounded-[10px] bg-surface-container px-3 py-2 text-sm">
+              <span class="text-on-surface-variant">Total de la compra</span>
+              <span class="font-semibold text-on-surface">{{ dinero((totalCompra() / 100).toFixed(2)) }}</span>
+            </div>
+          }
+
+          <p class="text-xs text-on-surface-variant">
+            Se registra una entrada por producto. No es una operación única: si alguna fallara, las demás
+            quedan registradas igualmente y se te dirá cuáles faltaron.
+          </p>
+
+          <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+            <button type="button" class="btn-outlined w-full sm:w-auto" (click)="cerrarPaneles()">Cancelar</button>
+            <button type="button" class="btn-primary w-full sm:w-auto" [disabled]="registrandoCompra()" (click)="registrarCompra()">
+              {{ registrandoCompra() ? 'Registrando…' : 'Registrar entrada de ' + lineasCompra().length + ' producto(s)' }}
+            </button>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- ===== Panel de categorías ===== -->
+    @if (panelCategorias()) {
+      <div class="card-base p-4 sm:p-5 flex flex-col gap-4">
+        <div class="flex items-start justify-between gap-2">
+          <h2 class="text-headline-md text-on-surface">Categorías</h2>
+          <button type="button" class="btn-icon" aria-label="Cerrar" (click)="cerrarPaneles()">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          </button>
+        </div>
+
+        @if (errorCategoria()) {
+          <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ errorCategoria() }}</p>
+        }
+
+        <div class="flex flex-col sm:flex-row gap-2">
+          <input type="text" class="field-input sm:flex-1" placeholder="Nombre de la categoría" [formControl]="nuevaCategoria" />
+          <button type="button" class="btn-primary shrink-0" [disabled]="guardandoCategoria()" (click)="crearCategoria()">
+            {{ guardandoCategoria() ? 'Creando…' : 'Añadir' }}
+          </button>
+        </div>
+
+        <ul class="flex flex-col gap-2">
+          @for (c of categorias(); track c.id) {
+            <li class="flex items-center justify-between gap-2 rounded-[10px] bg-surface-container-low px-3 py-2">
+              <span class="flex items-center gap-2 min-w-0">
+                <span class="text-sm truncate" [class]="c.activa ? 'text-on-surface' : 'text-on-surface-variant'">
+                  {{ c.nombre }}
+                </span>
+                @if (!c.activa) {
+                  <span class="shrink-0 rounded-full bg-surface-container px-2 py-0.5 text-[11px] text-on-surface-variant">
+                    Dada de baja
+                  </span>
+                }
+              </span>
+              @if (c.activa) {
+                <button type="button" class="shrink-0 text-xs text-on-surface-variant hover:text-danger-text" (click)="darDeBajaCategoria(c)">
+                  Dar de baja
+                </button>
+              } @else {
+                <button type="button" class="shrink-0 text-xs text-primary hover:underline" (click)="reactivarCategoria(c)">
+                  Reactivar
+                </button>
+              }
+            </li>
+          }
+        </ul>
+      </div>
+    }
+
+    <!-- ===== Panel de movimiento ===== -->
+    @if (productoMoviendo(); as p) {
+      <div class="card-base p-4 sm:p-5 flex flex-col gap-4">
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <h2 class="text-headline-md text-on-surface">Ajustar existencias</h2>
+            <p class="text-xs text-on-surface-variant mt-0.5">
+              {{ p.nombre }} · {{ cantidad(p.stock ?? '0') }} en existencia
+            </p>
+          </div>
+          <button type="button" class="btn-icon" aria-label="Cerrar" (click)="cerrarPaneles()">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          </button>
+        </div>
+
+        <p class="rounded-[10px] bg-surface-container px-3 py-2 text-xs text-on-surface-variant">
+          Para <strong>reponer</strong> usa el «+» de la fila o «Registrar compra». Este panel es para
+          <strong>corregir</strong>: merma, rotura, caducidad o conteo físico.
+        </p>
+
+        @if (errorMovimiento()) {
+          <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ errorMovimiento() }}</p>
+        }
+
+        <form class="flex flex-col gap-4" [formGroup]="formMovimiento" (ngSubmit)="registrarMovimiento()" novalidate>
+          <div class="grid sm:grid-cols-3 gap-4">
+            <div>
+              <label for="cant" class="block text-sm font-medium text-on-surface mb-1">Cantidad</label>
+              <input id="cant" type="text" inputmode="numeric" autocomplete="off" class="field-input" placeholder="-3" formControlName="cantidad" />
+              <p class="mt-1 text-xs text-on-surface-variant">Negativa descuenta (−3), positiva suma.</p>
+            </div>
+
+            <div class="sm:col-span-2">
+              <label for="motivo" class="block text-sm font-medium text-on-surface mb-1">Motivo *</label>
+              <input id="motivo" type="text" class="field-input" placeholder="Ej. merma por caducidad, conteo físico" formControlName="motivo" />
+              <p class="mt-1 text-xs text-on-surface-variant">
+                Obligatorio: un ajuste sin motivo no se puede auditar después.
+              </p>
+              @if (formMovimiento.controls.motivo.invalid && formMovimiento.controls.motivo.touched) {
+                <p class="mt-1 text-xs text-danger-text">El motivo es obligatorio.</p>
+              }
+            </div>
+          </div>
+
+          <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+            <button type="button" class="btn-outlined w-full sm:w-auto" (click)="cerrarPaneles()">Cancelar</button>
+            <button type="submit" class="btn-primary w-full sm:w-auto" [disabled]="moviendo()">
+              {{ moviendo() ? 'Registrando…' : 'Registrar ajuste' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    }
+
+    <!-- ===== Kardex ===== -->
+    @if (productoKardex(); as p) {
+      <div class="card-base overflow-hidden">
+        <div class="flex items-start justify-between gap-2 border-b border-outline-variant px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-on-surface">Movimientos de {{ p.nombre }}</p>
+            <p class="text-xs text-on-surface-variant">
+              Libro inmutable: los errores se corrigen con un movimiento inverso, nunca reescribiendo.
+            </p>
+          </div>
+          <button type="button" class="btn-icon" aria-label="Cerrar" (click)="cerrarPaneles()">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          </button>
+        </div>
+
+        @if (cargandoKardex()) {
+          <p class="px-4 py-6 text-center text-sm text-on-surface-variant">Cargando…</p>
+        } @else if (movimientos().length === 0) {
+          <p class="px-4 py-6 text-center text-sm text-on-surface-variant">Sin movimientos todavía.</p>
+        } @else {
+          <ul class="divide-y divide-outline-variant max-h-96 overflow-y-auto">
+            @for (m of movimientos(); track m.id) {
+              <li class="px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+                <div class="min-w-0">
+                  <span [class]="claseTipo(m.tipo)">{{ etiquetasTipo[m.tipo] }}</span>
+                  <p class="mt-1 text-xs text-on-surface-variant">
+                    {{ fecha(m.fecha_hora) }} · {{ m.usuario_nombre }}
+                    @if (m.motivo) { · {{ m.motivo }} }
+                  </p>
+                </div>
+                <div class="text-right">
+                  <p class="text-sm font-semibold" [class]="m.cantidad.startsWith('-') ? 'text-danger-text' : 'text-success-text'">
+                    {{ m.cantidad.startsWith('-') ? '' : '+' }}{{ cantidad(m.cantidad) }}
+                  </p>
+                  <p class="text-xs text-on-surface-variant">quedan {{ cantidad(m.saldo_resultante) }}</p>
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    }
+
+    <!-- ===== Listado ===== -->
+    <div class="card-base p-4">
+      <div class="relative">
+        <span class="material-symbols-outlined pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant" aria-hidden="true">search</span>
+        <input type="search" class="field-search" placeholder="Buscar por nombre…" autocomplete="off" [formControl]="buscar" aria-label="Buscar producto" />
+      </div>
+    </div>
+
+    @if (cargando()) {
+      <div class="card-base p-8 text-center text-sm text-on-surface-variant">Cargando inventario…</div>
+    } @else if (productos().length === 0) {
+      <div class="card-base p-8 flex flex-col items-center gap-1 text-center">
+        <p class="font-medium text-on-surface">No hay productos todavía</p>
+        <p class="text-sm text-on-surface-variant">Crea el primero con el botón «Nuevo producto».</p>
+      </div>
+    } @else {
+      <div class="card-base overflow-hidden">
+        <div class="hidden md:block overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-surface-container-highest/50 text-left">
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Producto</th>
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Categoría</th>
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Precio</th>
+                @if (puedeVerCostos()) {
+                  <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Costo</th>
+                }
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Existencias</th>
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Estado</th>
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant">
+              @for (p of productos(); track p.id) {
+                <tr>
+                  <td class="px-4 py-3">
+                    <p class="font-medium text-on-surface">{{ p.nombre }}</p>
+                    <p class="text-xs text-on-surface-variant">
+                      {{ p.marca }}{{ p.marca && p.presentacion ? ' · ' : '' }}{{ p.presentacion }}
+                    </p>
+                  </td>
+                  <td class="px-4 py-3 text-on-surface-variant">{{ p.categoria_nombre }}</td>
+                  <td class="px-4 py-3 font-semibold text-primary">{{ dinero(p.precio_venta) }}</td>
+                  @if (puedeVerCostos()) {
+                    <td class="px-4 py-3 text-on-surface-variant">{{ dinero(p.costo) }}</td>
+                  }
+                  <td class="px-4 py-3">
+                    <span class="font-semibold" [class]="bajoMinimo(p) ? 'text-danger-text' : 'text-on-surface'">
+                      {{ cantidad(p.stock ?? '0') }}
+                    </span>
+                    @if (bajoMinimo(p)) {
+                      <span class="block text-xs text-danger-text">bajo mínimo</span>
+                    }
+                  </td>
+                  <td class="px-4 py-3">
+                    <span [class]="p.activo ? 'badge-success' : 'badge-danger'">
+                      {{ p.activo ? 'Activo' : 'Inactivo' }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3">
+                    <div class="flex items-center justify-end gap-1.5">
+                      <button type="button" class="btn-icon" [attr.aria-label]="'Ver movimientos de ' + p.nombre" title="Movimientos" (click)="abrirKardex(p)">
+                        <span class="material-symbols-outlined" aria-hidden="true">history</span>
+                      </button>
+                      @if (puedeGestionar()) {
+                        <button type="button" class="btn-icon" [attr.aria-label]="'Mover existencias de ' + p.nombre" title="Entrada o ajuste" (click)="abrirMovimiento(p)">
+                          <span class="material-symbols-outlined" aria-hidden="true">inventory</span>
+                        </button>
+                        <button type="button" class="btn-icon" [attr.aria-label]="'Editar ' + p.nombre" title="Editar" (click)="abrirEdicion(p)">
+                          <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                        </button>
+                        @if (p.activo) {
+                          <button type="button" class="btn-icon" [attr.aria-label]="'Dar de baja ' + p.nombre" title="Dar de baja" (click)="darDeBaja(p)">
+                            <span class="material-symbols-outlined" aria-hidden="true">block</span>
+                          </button>
+                        } @else {
+                          <button type="button" class="btn-icon text-primary" [attr.aria-label]="'Reactivar ' + p.nombre" title="Reactivar" (click)="reactivar(p)">
+                            <span class="material-symbols-outlined" aria-hidden="true">restart_alt</span>
+                          </button>
+                        }
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Tarjetas por debajo de md (RF-23, sin scroll horizontal). -->
+        <div class="md:hidden flex flex-col divide-y divide-outline-variant">
+          @for (p of productos(); track p.id) {
+            <div class="p-4 flex flex-col gap-3">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="font-medium text-on-surface truncate">{{ p.nombre }}</p>
+                  <p class="text-xs text-on-surface-variant">{{ p.categoria_nombre }}</p>
+                </div>
+                <p class="font-semibold text-primary shrink-0">{{ dinero(p.precio_venta) }}</p>
+              </div>
+              <div class="flex flex-wrap items-center gap-1.5">
+                <span [class]="p.activo ? 'badge-success' : 'badge-danger'">{{ p.activo ? 'Activo' : 'Inactivo' }}</span>
+                <span class="badge-neutral">{{ cantidad(p.stock ?? '0') }} en existencia</span>
+                @if (bajoMinimo(p)) { <span class="badge-danger">Bajo mínimo</span> }
+              </div>
+              <div class="flex items-center justify-end gap-1.5">
+                <button type="button" class="btn-icon" [attr.aria-label]="'Ver movimientos de ' + p.nombre" (click)="abrirKardex(p)">
+                  <span class="material-symbols-outlined" aria-hidden="true">history</span>
+                </button>
+                @if (puedeGestionar()) {
+                  <button type="button" class="btn-icon" [attr.aria-label]="'Mover existencias de ' + p.nombre" (click)="abrirMovimiento(p)">
+                    <span class="material-symbols-outlined" aria-hidden="true">inventory</span>
+                  </button>
+                  <button type="button" class="btn-icon" [attr.aria-label]="'Editar ' + p.nombre" (click)="abrirEdicion(p)">
+                    <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                  </button>
+                  @if (p.activo) {
+                    <button type="button" class="btn-icon" [attr.aria-label]="'Dar de baja ' + p.nombre" (click)="darDeBaja(p)">
+                      <span class="material-symbols-outlined" aria-hidden="true">block</span>
+                    </button>
+                  } @else {
+                    <button type="button" class="btn-icon text-primary" [attr.aria-label]="'Reactivar ' + p.nombre" (click)="reactivar(p)">
+                      <span class="material-symbols-outlined" aria-hidden="true">restart_alt</span>
+                    </button>
+                  }
+                }
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+  }
+</div>

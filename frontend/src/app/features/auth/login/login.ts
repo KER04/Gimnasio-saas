@@ -33,6 +33,46 @@ export class Login {
   protected readonly enviando = signal(false);
   protected readonly errorBackend = signal<string | null>(null);
 
+  /** Mostrar la contraseña en claro. Ayuda de verdad en un mostrador, donde
+   * se teclea rápido y a menudo con el móvil. */
+  protected readonly passwordVisible = signal(false);
+
+  /**
+   * Crédito del pie. Vive aquí y no en la plantilla porque aparece DOS veces
+   * —en el panel morado de escritorio y en el pie de móvil, que se excluyen
+   * entre sí—, y tenerlo duplicado hacía que cambiar uno pareciera no surtir
+   * efecto: se editaba el que estaba oculto en ese tamaño de pantalla.
+   */
+  protected readonly desarrolladoPor = 'KEVINGOOOD';
+
+  protected alternarPassword(): void {
+    this.passwordVisible.update((visible) => !visible);
+  }
+
+  /**
+   * Lo que se promete en el panel izquierdo. Se declara aquí, y no suelto en
+   * la plantilla, para que quede claro que cada punto describe algo que la
+   * aplicación HACE -- nada de "cifrado de nivel bancario" ni promesas de
+   * marketing que nadie pueda comprobar.
+   */
+  protected readonly caracteristicas = [
+    {
+      icono: 'shield_lock',
+      titulo: 'Datos aislados',
+      texto: 'Cada gimnasio ve solo lo suyo. El aislamiento lo impone la base de datos, no la aplicación.',
+    },
+    {
+      icono: 'payments',
+      titulo: 'Caja cuadrada',
+      texto: 'Ventas, abonos y cartera al día, con el corte diario desglosado por forma de pago.',
+    },
+    {
+      icono: 'fact_check',
+      titulo: 'Acceso y stock',
+      texto: 'Vencimientos avisados a tiempo, control de entrada e inventario con su libro de movimientos.',
+    },
+  ];
+
   protected readonly form = this.fb.nonNullable.group({
     codigoGimnasio: this.fb.nonNullable.control(''),
     correo: this.fb.nonNullable.control('', [Validators.required, Validators.email]),

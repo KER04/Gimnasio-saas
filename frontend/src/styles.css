@@ -130,11 +130,17 @@
 
   /* ---- Espaciado ---- */
   --spacing: 4px;
-  --spacing-xs: 0.5rem;
-  --spacing-sm: 1rem;
-  --spacing-md: 1.5rem;
-  --spacing-lg: 2rem;
-  --spacing-xl: 3rem;
+
+  /* OJO: aquí había alias `--spacing-xs/sm/md/lg/xl`. Se eliminaron porque
+   * en Tailwind v4 las utilidades de ancho resuelven contra el namespace
+   * `--spacing-*`, así que esos alias SECUESTRABAN la escala de contenedores:
+   * `max-w-xs` pasaba a valer 0.5rem (8px) en vez de 20rem, `max-w-sm` 1rem
+   * en vez de 24rem y `max-w-md` 1.5rem en vez de 28rem. Eso dejaba el campo
+   * de fecha del alta, la tarjeta de login y el buscador de la cabecera
+   * reducidos a un cuadrado de pocos píxeles. No los usaba nadie como
+   * espaciado (`p-xs`, `gap-md`... no aparecen en ninguna plantilla): solo
+   * hacían daño. Si hicieran falta escalas propias, deben ir en otro
+   * namespace que no pise el de Tailwind. */
 
   --width-sidebar: 260px;
   --height-header: 72px;
@@ -219,6 +225,37 @@ h1, h2, h3, h4, h5, h6 {
 
   &:hover {
     background-color: color-mix(in oklch, var(--color-secondary-container) 80%, black);
+  }
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+/* Acción destructiva o irreversible: suspender un gimnasio, cancelar un
+   contrato. Sólido y en rojo, no un `btn-secondary` con texto rojo -- si
+   pesa lo mismo que "Cancelar", se pulsa igual de a la ligera. Se usa con
+   cuentagotas: si todo es rojo, nada lo es. */
+@utility btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding-inline: 1.25rem;
+  border-radius: var(--radius-lg);
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  line-height: 1;
+  transition: background-color 0.15s ease;
+  cursor: pointer;
+  border: 2px solid transparent;
+  background-color: var(--color-danger-text);
+  color: white;
+
+  &:hover {
+    background-color: color-mix(in oklch, var(--color-danger-text) 85%, black);
   }
   &:disabled {
     opacity: 0.6;

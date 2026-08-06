@@ -2,13 +2,19 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
 
 import { AuthService } from '../../../core/services/auth.service';
 import { ClientesService } from '../../../core/services/clientes.service';
 import { PlanesService } from '../../../core/services/planes.service';
-import { ClienteResumen, EstadoFiltroCliente, EstadoMembresia } from '../../../core/models/cliente.model';
+import {
+  ClienteResumen,
+  EstadoFiltroCliente,
+  EstadoMembresia,
+  FiltroEliminados,
+  OPCIONES_ELIMINADOS,
+} from '../../../core/models/cliente.model';
 import { Plan } from '../../../core/models/plan.model';
 
 /** Opciones del selector "Estado" (valor vacío = todos, sin filtrar). */
@@ -37,6 +43,7 @@ export class ClientesListado {
   private readonly planesService = inject(PlanesService);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly puedeGestionar = computed(() => this.authService.tienePermiso('clientes.gestionar'));
@@ -48,10 +55,18 @@ export class ClientesListado {
   protected readonly estado = new FormControl<EstadoFiltroCliente | ''>('', { nonNullable: true });
   protected readonly plan = new FormControl<number | ''>('', { nonNullable: true });
 
+  /** Un filtro más, no una pantalla aparte: los eliminados salen en la misma
+   * lista. El borrado es lógico (la ficha y su histórico siguen en la base de
+   * datos), así que sin esto un clic de más en "Eliminar" era irreversible
+   * salvo tocando la base a mano. */
+  protected readonly eliminados = new FormControl<FiltroEliminados>('excluir', { nonNullable: true });
+  protected readonly opcionesEliminados = OPCIONES_ELIMINADOS;
+
   protected readonly clientes = signal<ClienteResumen[]>([]);
   protected readonly cargando = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly eliminandoId = signal<number | null>(null);
+  protected readonly restaurandoId = signal<number | null>(null);
 
   protected readonly count = signal(0);
   protected readonly next = signal<string | null>(null);
@@ -64,12 +79,49 @@ export class ClientesListado {
   protected readonly hasta = computed(() => Math.min(this.pagina() * 20, this.count()));
 
   /** Distingue el estado vacío "no hay clientes todavía" del de "la
-   * búsqueda/filtro no encontró nada": mismo listado vacío, mensaje distinto. */
-  protected readonly hayFiltro = computed(
-    () => this.busqueda.value.trim().length > 0 || this.estado.value !== '' || this.plan.value !== '',
-  );
+   * búsqueda/filtro no encontró nada": mismo listado vacío, mensaje distinto.
+   *
+   * Método normal y NO `computed`: lee `FormControl.value`, que no es una
+   * señal. Un `computed` que solo lee valores no reactivos no llega a
+   * registrar ninguna dependencia, así que se evaluaría una vez y devolvería
+   * ese primer resultado para siempre -- aquí, "no hay filtro" incluso
+   * después de buscar. Como método se reevalúa en cada ciclo de detección de
+   * cambios, que es justo lo que necesita. */
+  protected hayFiltro(): boolean {
+    return (
+      this.busqueda.value.trim().length > 0
+      || this.estado.value !== ''
+      || this.plan.value !== ''
+      || this.eliminados.value !== 'excluir'
+    );
+  }
 
   constructor() {
+    // El buscador del header navega a `/clientes?buscar=…`. Sin esto el
+    // parámetro se ignoraba por completo y la búsqueda global no hacía nada.
+    //
+    // Se toma primero del `snapshot`, ANTES de suscribirse y sin emitir
+    // evento, para que la carga inicial ya salga filtrada y no se dispare
+    // una segunda petición.
+    const buscarInicial = this.route.snapshot.queryParamMap.get('buscar') ?? '';
+    if (buscarInicial) {
+      this.busqueda.setValue(buscarInicial, { emitEvent: false });
+    }
+
+    // Búsquedas POSTERIORES desde el header: la ruta es la misma, así que
+    // Angular reutiliza el componente y no vuelve a construirlo; si solo se
+    // leyera el snapshot, la segunda búsqueda no surtiría efecto. La primera
+    // emisión coincide con lo ya fijado arriba y sale por el `return`.
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const texto = params.get('buscar') ?? '';
+      if (texto === this.busqueda.value) {
+        return;
+      }
+      this.busqueda.setValue(texto, { emitEvent: false });
+      this.pagina.set(1);
+      this.cargar();
+    });
+
     this.busqueda.valueChanges
       .pipe(
         debounceTime(300),
@@ -91,6 +143,11 @@ export class ClientesListado {
       this.cargar();
     });
 
+    this.eliminados.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.pagina.set(1);
+      this.cargar();
+    });
+
     this.planesService.listar().subscribe({
       next: (planes) => this.planes.set(planes),
       error: () => this.planes.set([]),
@@ -107,7 +164,7 @@ export class ClientesListado {
     const estado = this.estado.value || undefined;
     const plan = this.plan.value || undefined;
 
-    this.clientesService.listar(texto, this.pagina(), estado, plan).subscribe({
+    this.clientesService.listar(texto, this.pagina(), estado, plan, this.eliminados.value).subscribe({
       next: (respuesta) => {
         this.clientes.set(respuesta.results);
         this.count.set(respuesta.count);
@@ -139,6 +196,12 @@ export class ClientesListado {
   }
 
   protected irAFicha(cliente: ClienteResumen): void {
+    // La ficha de un cliente eliminado responde 404 a propósito: primero se
+    // restaura y luego se consulta. Sin esta guarda, pinchar una fila de la
+    // papelera llevaba a una pantalla de error.
+    if (cliente.eliminado_en) {
+      return;
+    }
     this.router.navigate(['/clientes', cliente.id]);
   }
 
@@ -169,6 +232,26 @@ export class ClientesListado {
       },
       error: (error: unknown) => {
         this.eliminandoId.set(null);
+        this.error.set(this.mensajeDeError(error));
+      },
+    });
+  }
+
+  /** Devuelve un cliente eliminado a la circulación. Sin confirmación:
+   * restaurar no destruye nada y se deshace volviendo a eliminar. */
+  protected restaurar(cliente: ClienteResumen, evento: Event): void {
+    evento.stopPropagation();
+    if (this.restaurandoId() !== null) {
+      return;
+    }
+    this.restaurandoId.set(cliente.id);
+    this.clientesService.restaurar(cliente.id).subscribe({
+      next: () => {
+        this.restaurandoId.set(null);
+        this.cargar();
+      },
+      error: (error: unknown) => {
+        this.restaurandoId.set(null);
         this.error.set(this.mensajeDeError(error));
       },
     });
@@ -216,29 +299,48 @@ export class ClientesListado {
     }
   }
 
-  /** Fecha relativa legible de la última visita (asistencia). `null` es
-   * "nunca vino", no un dato faltante. */
-  protected ultimaVisita(fechaIso: string | null): string {
-    if (!fechaIso) {
-      return 'Nunca';
-    }
-    const fecha = new Date(fechaIso);
-    const ahora = new Date();
-    const inicioHoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
-    const inicioFecha = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
-    const diasTranscurridos = Math.round((inicioHoy.getTime() - inicioFecha.getTime()) / 86_400_000);
-
-    if (diasTranscurridos === 0) {
-      const hora = fecha.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false });
-      return `Hoy, ${hora}`;
-    }
-    if (diasTranscurridos === 1) {
-      return 'Ayer';
-    }
-    if (diasTranscurridos > 1 && diasTranscurridos < 30) {
-      return `Hace ${diasTranscurridos} días`;
+  /**
+   * Fecha de vencimiento de la membresía vigente. Sustituye a la columna de
+   * "última visita": mientras no exista el control de asistencia, esa
+   * columna solo podía decir "Nunca" para todo el mundo, mientras que saber
+   * a quién se le acaba la membresía es lo que dispara la gestión de cobro
+   * (RF-16).
+   *
+   * `fecha_fin` llega como `YYYY-MM-DD`; se le añade `T00:00:00` para que se
+   * interprete en hora LOCAL (sin eso, `new Date('2026-09-02')` se lee como
+   * UTC y en Colombia, UTC-5, mostraría el día anterior).
+   */
+  /** `eliminado_en` es un INSTANTE, no una fecha suelta: no puede pasar por
+   * `fechaVencimiento`, que le concatena `T00:00:00` y produciría `Invalid
+   * Date`. */
+  protected fechaEliminacion(instanteIso: string): string {
+    const fecha = new Date(instanteIso);
+    if (Number.isNaN(fecha.getTime())) {
+      return instanteIso;
     }
     return fecha.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  protected fechaVencimiento(fechaIso: string): string {
+    const fecha = new Date(`${fechaIso}T00:00:00`);
+    if (Number.isNaN(fecha.getTime())) {
+      return fechaIso;
+    }
+    return fecha.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  /** Texto de apoyo bajo la fecha. `dias_restantes` lo calcula la base de
+   * datos en la zona horaria del gimnasio (`v_membresias_estado`), así que
+   * aquí solo se redacta: negativo = ya venció. */
+  protected diasRestantes(dias: number): string {
+    if (dias < 0) {
+      const vencidos = Math.abs(dias);
+      return vencidos === 1 ? 'venció ayer' : `venció hace ${vencidos} días`;
+    }
+    if (dias === 0) {
+      return 'vence hoy';
+    }
+    return dias === 1 ? 'queda 1 día' : `quedan ${dias} días`;
   }
 
   private mensajeDeError(error: unknown): string {

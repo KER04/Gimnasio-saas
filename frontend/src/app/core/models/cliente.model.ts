@@ -47,6 +47,20 @@ export interface MembresiaVigenteResumen {
   dias_restantes: number;
 }
 
+/**
+ * Filtro `?eliminados=` del listado: un filtro más, al lado de `estado` y
+ * `plan`. Los clientes eliminados no viven en una pantalla aparte, se ven en
+ * la misma lista acotando desde aquí.
+ */
+export type FiltroEliminados = 'excluir' | 'incluir' | 'solo';
+
+/** Opciones del selector, en el orden en que se ofrecen. */
+export const OPCIONES_ELIMINADOS: { valor: FiltroEliminados; etiqueta: string }[] = [
+  { valor: 'excluir', etiqueta: 'Solo activos' },
+  { valor: 'incluir', etiqueta: 'Activos y eliminados' },
+  { valor: 'solo', etiqueta: 'Solo eliminados' },
+];
+
 /** Fila mínima del listado (`ClienteResumenSerializer`, `GET /api/clientes/`). */
 export interface ClienteResumen {
   id: number;
@@ -56,6 +70,10 @@ export interface ClienteResumen {
   activo: boolean;
   membresia_vigente: MembresiaVigenteResumen | null;
   ultima_visita: string | null;
+  /** Fecha del borrado lógico, o `null` si el cliente está vivo. Solo llega
+   * distinto de `null` pidiendo la papelera (`incluir_eliminados`), porque el
+   * listado normal no devuelve eliminados. */
+  eliminado_en: string | null;
 }
 
 /** Cuerpo de alta/edición (`POST`/`PATCH /api/clientes/`). Las autorizaciones
@@ -115,7 +133,11 @@ export interface DetalleVentaCliente {
 /** Una venta con saldo pendiente, con sus líneas y sus abonos en orden
  * cronológico (RF-09, pestaña "Deuda" de la ficha). */
 export interface VentaConSaldo {
+  /** Identificador interno. NO se enseña: para el usuario, la venta es su
+   * `consecutivo`, que es el número del recibo. */
   venta_id: number;
+  /** Número visible de la venta, único por sede. */
+  consecutivo: number | null;
   fecha_hora: string;
   total: string;
   total_pagado: string;

@@ -25,18 +25,23 @@ from django.test import TestCase, TransactionTestCase, override_settings
 from rest_framework_simplejwt.tokens import AccessToken
 
 from apps.core.tenant import tenant_context
-from apps.organizacion.models import Rol, Usuario
+from apps.organizacion.models import Permiso, Rol, RolPermiso, Usuario
 from apps.plataforma.models import Tenant
 
 _ALLOWED_HOSTS_PRUEBA = ['testserver', '.testserver']
 PASSWORD = 'clave-super-segura-123'
 
 
-def _crear_tenant_con_usuario(subdominio, sufijo, correo, password=PASSWORD):
+def _crear_tenant_con_usuario(subdominio, sufijo, correo, password=PASSWORD, permisos=()):
     """Crea un tenant + rol + usuario CON password real (hasheada vía
     ``create_user``), a diferencia de ``crear_tenant_completo`` (usada en
     ``test_aislamiento.py``), que siembra un ``password`` dummy sin hashear
-    porque esos tests nunca hacen login de verdad."""
+    porque esos tests nunca hacen login de verdad.
+
+    ``permisos`` son códigos (``'config.usuarios'``...) que se conceden al rol.
+    Por defecto NINGUNO: la mayoría de estas pruebas solo hacen login, y un
+    rol sin permisos es el punto de partida honesto para comprobar los 403.
+    """
     tenant = Tenant.objects.using('default').create(
         nombre_comercial=f'Gimnasio {sufijo}',
         subdominio=subdominio,
@@ -47,10 +52,29 @@ def _crear_tenant_con_usuario(subdominio, sufijo, correo, password=PASSWORD):
         rol = Rol.objects.using('default').create(
             tenant=tenant, nombre=f'Administrador {sufijo}', es_sistema=True,
         )
+        if permisos:
+            por_codigo = {p.codigo: p for p in Permiso.objects.using('default').all()}
+            RolPermiso.objects.using('default').bulk_create([
+                RolPermiso(rol=rol, permiso=por_codigo[codigo], tenant=tenant)
+                for codigo in permisos
+            ])
         usuario = Usuario.objects.create_user(
             correo=correo, nombre=f'Usuario {sufijo}', tenant=tenant, rol=rol, password=password,
         )
     return tenant, rol, usuario
+
+
+def _cabecera_token(usuario):
+    """Cabecera con un access token como el que emite ``LoginSerializer``.
+
+    El claim ``tenant_id`` es imprescindible, no decorativo: ``TenantMiddleware``
+    lo usa para fijar ``app.tenant_id``, y sin él la propia autenticación
+    (que resuelve al usuario leyendo `usuarios`, tabla con RLS FORCE) no
+    encuentra a nadie y responde "User not found" aunque el token sea válido.
+    """
+    token = AccessToken.for_user(usuario)
+    token['tenant_id'] = usuario.tenant_id
+    return {'HTTP_AUTHORIZATION': f'Bearer {token}'}
 
 
 @override_settings(ALLOWED_HOSTS=_ALLOWED_HOSTS_PRUEBA)
@@ -272,53 +296,93 @@ class TenantCruzadoTestCase(TestCase):
 
 @override_settings(ALLOWED_HOSTS=_ALLOWED_HOSTS_PRUEBA)
 class RegisterTenantTestCase(TestCase):
-    """Sanity check de la Parte D: /api/auth/register/ exige un tenant
-    resuelto (sin él, 400) y, con tenant, crea el usuario DENTRO de ese
-    tenant."""
+    """``/api/auth/register/`` ya NO es anónimo.
+
+    Dar de alta a un compañero es una operación del administrador del
+    gimnasio (``config.usuarios``). Cuando el endpoint era ``AllowAny``,
+    cualquiera que conociera un subdominio podía crearse una cuenta dentro de
+    ese gimnasio.
+    """
 
     databases = {'default', 'ddl'}
 
     @classmethod
     def setUpTestData(cls):
         cache.clear()
-        cls.tenant, cls.rol, _usuario_existente = _crear_tenant_con_usuario(
-            'registro', 'R', 'ya-existe@example.com',
+        cls.tenant, cls.rol, cls.admin = _crear_tenant_con_usuario(
+            'registro', 'R', 'ya-existe@example.com', permisos=('config.usuarios',),
         )
+        # Segundo gimnasio, para comprobar que no se puede sembrar dentro de
+        # él desde el primero.
+        cls.tenant_ajeno, cls.rol_ajeno, _ = _crear_tenant_con_usuario(
+            'registroajeno', 'RA', 'ajeno@example.com',
+        )
+        # Usuario del MISMO gimnasio pero sin el permiso.
+        with tenant_context(cls.tenant.id):
+            rol_pelado = Rol.objects.using('default').create(
+                tenant=cls.tenant, nombre='Sin permisos R', es_sistema=False,
+            )
+            cls.sin_permiso = Usuario.objects.create_user(
+                correo='pelado@example.com', nombre='Sin Permiso',
+                tenant=cls.tenant, rol=rol_pelado, password=PASSWORD,
+            )
 
     def setUp(self):
         cache.clear()
 
-    def test_registro_sin_tenant_resuelto_da_400(self):
-        respuesta = self.client.post(
+    def _registrar(self, correo, cabeceras=None, **extra_body):
+        return self.client.post(
             '/api/auth/register/',
             data={
-                'correo': 'nuevo@example.com',
+                'correo': correo,
                 'nombre': 'Nuevo Usuario',
                 'password': PASSWORD,
                 'rol': self.rol.id,
-            },
-            content_type='application/json',
-            HTTP_HOST='testserver',
-        )
-        self.assertEqual(respuesta.status_code, 400)
-
-    def test_registro_con_tenant_resuelto_crea_usuario(self):
-        respuesta = self.client.post(
-            '/api/auth/register/',
-            data={
-                'correo': 'nuevo@example.com',
-                'nombre': 'Nuevo Usuario',
-                'password': PASSWORD,
-                'rol': self.rol.id,
+                **extra_body,
             },
             content_type='application/json',
             HTTP_HOST='registro.testserver',
+            **(cabeceras or {}),
         )
+
+    def test_registro_anonimo_da_401(self):
+        respuesta = self._registrar('nuevo@example.com')
+        self.assertEqual(respuesta.status_code, 401, respuesta.content)
+
+    def test_registro_sin_el_permiso_da_403(self):
+        respuesta = self._registrar('nuevo@example.com', _cabecera_token(self.sin_permiso))
+        self.assertEqual(respuesta.status_code, 403, respuesta.content)
+
+    def test_registro_con_permiso_crea_usuario_en_el_tenant_de_quien_lo_pide(self):
+        respuesta = self._registrar('nuevo@example.com', _cabecera_token(self.admin))
         self.assertEqual(respuesta.status_code, 201, respuesta.content)
         cuerpo = respuesta.json()
         self.assertEqual(cuerpo['user']['tenant_id'], self.tenant.id)
         self.assertIn('access', cuerpo)
         self.assertIn('refresh', cuerpo)
+
+    def test_el_subdominio_del_cuerpo_no_puede_sembrar_en_otro_gimnasio(self):
+        """El tenant sale del TOKEN, no del cuerpo.
+
+        Mientras el endpoint fue anónimo, el tenant se resolvía del cuerpo
+        (o del Host) porque no había otra fuente. Ahora la hay, y seguir
+        haciendo caso al cuerpo dejaría que el administrador del gimnasio A
+        creara usuarios dentro del gimnasio B con solo cambiar un campo.
+        """
+        respuesta = self._registrar(
+            'infiltrado@example.com',
+            _cabecera_token(self.admin),
+            subdominio='registroajeno',
+        )
+
+        self.assertEqual(respuesta.status_code, 201, respuesta.content)
+        self.assertEqual(respuesta.json()['user']['tenant_id'], self.tenant.id)
+
+        with tenant_context(self.tenant_ajeno.id):
+            self.assertFalse(
+                Usuario.objects.filter(correo='infiltrado@example.com').exists(),
+                'El usuario acabó en el gimnasio ajeno: el cuerpo mandó sobre el token.',
+            )
 
 
 @override_settings(ALLOWED_HOSTS=_ALLOWED_HOSTS_PRUEBA)
@@ -354,7 +418,7 @@ class SubdominioExplicitoTestCase(TestCase):
     def setUpTestData(cls):
         cache.clear()
         cls.tenant_a, cls.rol_a, cls.usuario_a = _crear_tenant_con_usuario(
-            'expla', 'ExplA', 'compartido.expl@example.com',
+            'expla', 'ExplA', 'compartido.expl@example.com', permisos=('config.usuarios',),
         )
         cls.tenant_b, cls.rol_b, cls.usuario_b = _crear_tenant_con_usuario(
             'explb', 'ExplB', 'compartido.expl@example.com',
@@ -462,9 +526,17 @@ class SubdominioExplicitoTestCase(TestCase):
 
         self.assertNotEqual(respuesta_a.json()['user']['id'], respuesta_b.json()['user']['id'])
 
-    def test_register_con_subdominio_en_cuerpo_desde_host_sin_subdominio(self):
-        """Escenario 7: register también acepta el campo `subdominio` del
-        cuerpo, incluso desde un Host que no resuelve ningún tenant."""
+    def test_register_desde_host_sin_subdominio_usa_el_tenant_del_token(self):
+        """El ``subdominio`` explícito del cuerpo es cosa de LOGIN, no de register.
+
+        Tenía sentido mientras register era anónimo: sin token no había otra
+        forma de saber a qué gimnasio iba el usuario nuevo. Ahora el endpoint
+        exige ``config.usuarios``, y el tenant sale del token de quien lo
+        pide -- que es la única fuente que el cliente no puede falsear.
+
+        Se sigue entrando por un Host SIN subdominio a propósito: demuestra
+        que el alta funciona sin depender de la URL.
+        """
         respuesta = self.client.post(
             '/api/auth/register/',
             data={
@@ -472,10 +544,10 @@ class SubdominioExplicitoTestCase(TestCase):
                 'nombre': 'Nuevo Usuario Explícito',
                 'password': PASSWORD,
                 'rol': self.rol_a.id,
-                'subdominio': 'expla',
             },
             content_type='application/json',
             HTTP_HOST='testserver',
+            **_cabecera_token(self.usuario_a),
         )
         self.assertEqual(respuesta.status_code, 201, respuesta.content)
         cuerpo = respuesta.json()

@@ -39,7 +39,7 @@ from django.test import TransactionTestCase
 from apps.autenticacion.backends import TenantAuthBackend
 from apps.core.tenant import tenant_context
 from apps.organizacion.models import Permiso, Rol, RolPermiso
-from apps.plataforma.management.commands.crear_tenant import TODOS_LOS_PERMISOS
+from apps.plataforma.aprovisionamiento import TODOS_LOS_PERMISOS
 from apps.plataforma.models import Tenant
 
 PASSWORD = 'clave-de-prueba-123'
@@ -95,15 +95,36 @@ class CrearTenantCommandTestCase(TransactionTestCase):
             None, correo='admin@pruebacmd.example.com', password=PASSWORD, tenant_id=tenant.id,
         )
         self.assertIsNotNone(usuario, 'El usuario administrador sembrado por crear_tenant debe poder autenticarse.')
-        self.assertTrue(usuario.es_staff)
-        self.assertTrue(usuario.es_superusuario)
-        self.assertTrue(usuario.is_staff)
-        self.assertTrue(usuario.is_superuser)
+        # SIN acceso al admin de Django salvo que se pida a propósito: ese
+        # panel enseña las tablas en crudo y se salta las validaciones de la
+        # aplicación, así que no es una herramienta para el cliente. Antes se
+        # concedía siempre.
+        self.assertFalse(usuario.es_staff)
+        self.assertFalse(usuario.es_superusuario)
         # `usuario.rol` es una FK: acceder a ella dispara una consulta NUEVA
         # (perezosa) contra `Rol`, fuera ya del tenant_context puntual que
         # abrió `authenticate()` -- hay que volver a fijarlo para esta lectura.
         with tenant_context(tenant.id, using='default'):
             self.assertEqual(usuario.rol.nombre, 'administrador')
+
+    def test_con_admin_django_concede_el_acceso_tecnico(self):
+        """La puerta al admin de Django sigue existiendo, pero hay que pedirla."""
+        call_command(
+            'crear_tenant',
+            nombre='Gimnasio Con Admin',
+            subdominio='pruebastaff',
+            correo='admin@pruebastaff.example.com',
+            password=PASSWORD,
+            con_admin_django=True,
+        )
+
+        tenant = Tenant.objects.using('default').get(subdominio='pruebastaff')
+        usuario = TenantAuthBackend().authenticate(
+            None, correo='admin@pruebastaff.example.com', password=PASSWORD, tenant_id=tenant.id,
+        )
+
+        self.assertTrue(usuario.es_staff)
+        self.assertTrue(usuario.es_superusuario)
 
     def test_recepcionista_no_tiene_permisos_de_costos(self):
         """Verificación explícita del encargo: el recepcionista NO lleva

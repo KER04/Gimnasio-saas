@@ -1,0 +1,155 @@
+@if (creado(); as c) {
+  <!-- Alta terminada: lo único que importa ahora son las credenciales. -->
+  <div class="flex flex-col gap-5 max-w-2xl">
+    <div class="rounded-xl bg-success-bg text-success-text px-5 py-4 flex items-start gap-3">
+      <span class="material-symbols-outlined shrink-0" aria-hidden="true">check_circle</span>
+      <div>
+        <p class="font-semibold">{{ c.nombre_comercial }} ya está creado</p>
+        <p class="text-sm mt-0.5">Con su sede, sus roles, sus permisos y su usuario administrador.</p>
+      </div>
+    </div>
+
+    <section class="card-base p-4 sm:p-5 flex flex-col gap-4">
+      <div>
+        <h2 class="text-headline-md text-on-surface">Credenciales de acceso</h2>
+        <p class="text-sm text-danger-text mt-1 flex items-start gap-1.5">
+          <span class="material-symbols-outlined text-[18px] shrink-0" aria-hidden="true">warning</span>
+          <span>
+            Esta contraseña se muestra <strong>una sola vez</strong>. No queda guardada en ningún
+            sitio y no se puede volver a consultar: si se pierde, hay que restablecerla.
+          </span>
+        </p>
+      </div>
+
+      <dl class="flex flex-col gap-3">
+        <div class="rounded-[10px] bg-surface-container-low px-3 py-2.5">
+          <dt class="text-xs text-on-surface-variant">Dirección del gimnasio</dt>
+          <dd class="font-mono text-on-surface mt-0.5">{{ c.acceso_inicial.url }}</dd>
+        </div>
+        <div class="rounded-[10px] bg-surface-container-low px-3 py-2.5">
+          <dt class="text-xs text-on-surface-variant">Usuario</dt>
+          <dd class="font-mono text-on-surface mt-0.5 break-all">{{ c.acceso_inicial.correo }}</dd>
+        </div>
+        <div class="rounded-[10px] bg-primary-container px-3 py-2.5">
+          <dt class="text-xs text-on-primary-container">Contraseña</dt>
+          <dd class="font-mono text-lg text-on-primary-container mt-0.5 tracking-wide break-all">
+            {{ c.acceso_inicial.password }}
+          </dd>
+        </div>
+      </dl>
+
+      <div class="flex flex-wrap gap-2">
+        <button type="button" class="btn-primary" (click)="copiar(c.acceso_inicial)">
+          <span class="material-symbols-outlined text-[20px]" aria-hidden="true">content_copy</span>
+          {{ copiado() ? 'Copiado' : 'Copiar credenciales' }}
+        </button>
+        <button type="button" class="btn-secondary" (click)="irAlGimnasio(c)">Ver la ficha</button>
+        <button type="button" class="btn-secondary" (click)="volver()">Volver al listado</button>
+      </div>
+
+      @if (error()) {
+        <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ error() }}</p>
+      }
+    </section>
+  </div>
+} @else {
+  <div class="flex flex-col gap-5 max-w-2xl">
+    <button type="button" class="self-start inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-on-surface" (click)="volver()">
+      <span class="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_back</span>
+      Todos los gimnasios
+    </button>
+
+    <div class="rounded-xl bg-primary px-5 py-5 sm:px-6">
+      <h1 class="text-headline-lg-mobile sm:text-headline-lg text-on-primary">Nuevo gimnasio</h1>
+      <p class="mt-1 text-body-md text-primary-fixed">
+        Se creará con su sede, los cuatro roles del sistema y su usuario administrador.
+      </p>
+    </div>
+
+    <form class="card-base p-4 sm:p-5 flex flex-col gap-4" [formGroup]="formulario" (ngSubmit)="enviar()">
+      @if (error()) {
+        <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2" role="alert">
+          {{ error() }}
+        </p>
+      }
+
+      <div>
+        <label for="nombre" class="block text-sm font-medium text-on-surface mb-1">Nombre comercial *</label>
+        <input id="nombre" type="text" class="field-input" placeholder="Gimnasio del Norte"
+               formControlName="nombre_comercial" />
+        @if (formulario.controls.nombre_comercial.invalid && formulario.controls.nombre_comercial.touched) {
+          <p class="mt-1 text-xs text-danger-text">Escribe el nombre del gimnasio.</p>
+        }
+        @if (errorDe('nombre_comercial'); as e) {
+          <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+        }
+      </div>
+
+      <div>
+        <label for="subdominio" class="block text-sm font-medium text-on-surface mb-1">Subdominio</label>
+        <input id="subdominio" type="text" class="field-input font-mono" placeholder="se propone solo"
+               formControlName="subdominio" />
+        <p class="mt-1 text-xs text-on-surface-variant">
+          Es la dirección del gimnasio. Si lo dejas vacío se propone a partir del nombre.
+          <strong>No se puede cambiar después</strong>, porque rompería los enlaces del cliente.
+        </p>
+        @if (errorDe('subdominio'); as e) {
+          <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+        }
+      </div>
+
+      <div>
+        <label for="correo" class="block text-sm font-medium text-on-surface mb-1">Correo del administrador *</label>
+        <input id="correo" type="email" inputmode="email" class="field-input"
+               placeholder="duenio@gimnasio.com" formControlName="correo_admin" />
+        <p class="mt-1 text-xs text-on-surface-variant">
+          Con este correo entrará el dueño. La contraseña la genera el sistema y se mostrará al terminar.
+        </p>
+        @if (formulario.controls.correo_admin.invalid && formulario.controls.correo_admin.touched) {
+          <p class="mt-1 text-xs text-danger-text">Escribe un correo válido.</p>
+        }
+        @if (errorDe('correo_admin'); as e) {
+          <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+        }
+      </div>
+
+      <div class="border-t border-outline-variant pt-4 flex flex-col gap-4">
+        <p class="text-sm font-medium text-on-surface">Datos opcionales</p>
+
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label for="sede" class="block text-sm font-medium text-on-surface mb-1">Nombre de la primera sede</label>
+            <input id="sede" type="text" class="field-input" placeholder="Sede Principal"
+                   formControlName="nombre_sede" />
+          </div>
+          <div>
+            <label for="responsable" class="block text-sm font-medium text-on-surface mb-1">Responsable</label>
+            <input id="responsable" type="text" class="field-input" placeholder="Igual que el nombre"
+                   formControlName="responsable" />
+          </div>
+          <div>
+            <label for="telefono" class="block text-sm font-medium text-on-surface mb-1">Teléfono</label>
+            <input id="telefono" type="text" inputmode="tel" class="field-input" formControlName="telefono" />
+          </div>
+          <div>
+            <label for="ciudad" class="block text-sm font-medium text-on-surface mb-1">Ciudad</label>
+            <input id="ciudad" type="text" class="field-input" formControlName="ciudad" />
+          </div>
+          <div>
+            <label for="nit" class="block text-sm font-medium text-on-surface mb-1">NIT</label>
+            <input id="nit" type="text" class="field-input" formControlName="nit" />
+          </div>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-2 pt-1">
+        <button type="submit" class="btn-primary" [disabled]="enviando()">
+          {{ enviando() ? 'Creando…' : 'Crear gimnasio' }}
+        </button>
+        <button type="button" class="btn-secondary" [disabled]="enviando()" (click)="volver()">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  </div>
+}

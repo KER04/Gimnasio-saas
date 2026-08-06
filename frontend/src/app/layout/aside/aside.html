@@ -4,26 +4,28 @@
 }
 
 <aside
-  class="fixed inset-y-0 left-0 z-50 flex h-screen w-[260px] shrink-0 flex-col gap-6 overflow-y-auto border-r border-outline-variant bg-surface-container-lowest p-4 transition-transform duration-200 ease-out md:static md:z-auto md:h-auto md:min-h-full md:translate-x-0"
+  class="fixed inset-y-0 left-0 z-50 flex h-screen w-[260px] shrink-0 flex-col overflow-y-auto border-r border-outline-variant bg-surface-container-lowest transition-transform duration-200 ease-out md:static md:z-auto md:h-auto md:min-h-full md:translate-x-0"
   [class.-translate-x-full]="!layoutService.abierto()"
 >
-  <!-- Tarjeta de gimnasio + sede. -->
-  <div class="card-base flex items-start gap-3 p-4">
-    <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary-container text-on-primary-container">
+  <!-- Marca del gimnasio, encabezando el lateral. `h-[var(--height-header)]`
+       la alinea exactamente con la barra superior de la columna de la
+       derecha, para que las dos cabeceras compartan línea de base. -->
+  <div class="flex h-[var(--height-header)] shrink-0 items-center gap-3 border-b border-outline-variant px-2">
+    <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-on-primary">
       <span class="material-symbols-outlined" aria-hidden="true">fitness_center</span>
     </span>
     <div class="min-w-0">
-      <p class="truncate font-display text-sm font-semibold text-on-surface">
+      <p class="truncate font-display text-lg font-bold leading-tight text-primary">
         {{ authService.nombreGimnasio() ?? '···' }}
       </p>
-      @if (authService.sedeActual(); as sede) {
-        <p class="truncate text-sm text-on-surface-variant">{{ sede.nombre }}</p>
-      } @else {
-        <p class="truncate text-sm italic text-on-surface-variant">Sin sede asignada</p>
-      }
+      <p class="truncate text-xs leading-tight text-on-surface-variant">Panel de gestión</p>
     </div>
   </div>
 
+  <!-- Todo lo que va bajo la marca lleva su propio margen: el `p-4` no puede
+       estar en el <aside>, o separaría la marca del borde y rompería su
+       alineación con el header. -->
+  <div class="flex flex-1 flex-col gap-6 p-4">
   <!-- Acción destacada. -->
   @if (puedeCrearCliente()) {
     <button type="button" class="btn-primary w-full" (click)="irANuevoCliente()">
@@ -50,7 +52,7 @@
         </a>
       } @else {
         <div
-          class="flex min-h-11 cursor-not-allowed items-center gap-3 rounded-lg border-l-4 border-transparent px-3 py-2 text-on-surface-variant/50"
+          class="flex min-h-11 cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2 text-on-surface-variant/50"
           [attr.title]="item.etiqueta + ': todavía no disponible'"
         >
           <ng-container [ngTemplateOutlet]="icono" [ngTemplateOutletContext]="{ id: item.id }" />
@@ -66,6 +68,7 @@
     <span class="material-symbols-outlined" aria-hidden="true">logout</span>
     Cerrar sesión
   </button>
+  </div>
 </aside>
 
 <!-- Iconos de la navegación, reutilizados en el estado disponible y en el atenuado. -->
@@ -75,6 +78,8 @@
       @case ('dashboard') { space_dashboard }
       @case ('clientes') { group }
       @case ('pos') { point_of_sale }
+      @case ('ventas') { receipt_long }
+      @case ('inventario') { inventory_2 }
       @case ('membresias') { card_membership }
       @case ('asistencia') { fact_check }
       @case ('reportes') { bar_chart }
