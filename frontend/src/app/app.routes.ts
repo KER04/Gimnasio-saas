@@ -129,6 +129,14 @@ export const routes: Routes = [
         path: 'usuarios',
         loadComponent: () => import('./features/usuarios/usuarios').then((m) => m.UsuariosGestion),
       },
+      {
+        path: 'caja',
+        loadComponent: () => import('./features/caja/caja').then((m) => m.CajaMovimientos),
+      },
+      {
+        path: 'sedes',
+        loadComponent: () => import('./features/sedes/sedes').then((m) => m.SedesGestion),
+      },
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
     ],
   },

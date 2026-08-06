@@ -37,10 +37,61 @@ def hay_otro_administrador(usuario):
 
 
 class SedeSerializer(serializers.ModelSerializer):
+    """Lectura de una sede, para el selector de sede de toda la aplicación."""
+
     class Meta:
         model = Sede
         fields = ('id', 'nombre', 'direccion', 'telefono', 'activa')
         read_only_fields = fields
+
+
+class SedeAdminSerializer(serializers.ModelSerializer):
+    """Escritura de sedes (``config.sedes``).
+
+    ``prefijo_comprobante`` sí es editable, pero solo tiene efecto en los
+    recibos que se emitan A PARTIR de ahora: el consecutivo ya asignado a
+    una venta no se recalcula. Cambiarlo con ventas hechas deja el histórico
+    con dos prefijos distintos, que es lo correcto (el recibo dice lo que
+    decía cuando se emitió) pero conviene saberlo.
+    """
+
+    class Meta:
+        model = Sede
+        fields = (
+            'id', 'nombre', 'direccion', 'telefono', 'nit',
+            'encabezado_recibo', 'prefijo_comprobante', 'activa',
+        )
+        read_only_fields = ('id',)
+        extra_kwargs = {
+            'nombre': {'required': True},
+            'direccion': {'required': True},
+            # `db_default` en el modelo: lo pone PostgreSQL, y DRF solo mira
+            # `default=`, así que sin esto los daría por obligatorios.
+            'prefijo_comprobante': {'required': False},
+            'activa': {'required': False},
+        }
+
+    def validate_nombre(self, valor):
+        nombre = valor.strip()
+        if not nombre:
+            raise serializers.ValidationError('La sede necesita un nombre.')
+
+        # `uq_sedes_nombre` es único por tenant. RLS ya acota la consulta al
+        # gimnasio actual, así que basta con excluirse a uno mismo al editar.
+        existentes = Sede.objects.filter(nombre__iexact=nombre)
+        if self.instance is not None:
+            existentes = existentes.exclude(pk=self.instance.pk)
+        if existentes.exists():
+            raise serializers.ValidationError('Ya hay una sede con ese nombre.')
+        return nombre
+
+    def validate_prefijo_comprobante(self, valor):
+        prefijo = valor.strip().upper()
+        if not prefijo:
+            raise serializers.ValidationError('El prefijo no puede estar vacío.')
+        if not prefijo.isalnum():
+            raise serializers.ValidationError('Usa solo letras y números, sin espacios ni signos.')
+        return prefijo
 
 
 class RolSerializer(serializers.ModelSerializer):

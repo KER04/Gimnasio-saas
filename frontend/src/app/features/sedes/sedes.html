@@ -1,0 +1,170 @@
+<div class="flex flex-col gap-5">
+  <div class="rounded-xl bg-primary px-5 py-5 sm:px-6 flex flex-wrap items-center justify-between gap-4">
+    <div>
+      <h1 class="text-headline-lg-mobile sm:text-headline-lg text-on-primary">Sedes</h1>
+      <p class="mt-1 text-body-md text-primary-fixed">
+        Dónde opera el gimnasio. Cada sede lleva su propia numeración de recibos.
+      </p>
+    </div>
+    <button type="button" class="btn-inverted" (click)="abrirAlta()">
+      <span class="material-symbols-outlined" aria-hidden="true">add_business</span>
+      Nueva sede
+    </button>
+  </div>
+
+  @if (error()) {
+    <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2" role="alert">
+      {{ error() }}
+    </p>
+  }
+
+  @if (aviso(); as texto) {
+    <div class="rounded-[10px] bg-warning-bg text-warning-text text-sm px-3 py-2.5 flex items-start gap-2">
+      <span class="material-symbols-outlined text-[20px] shrink-0" aria-hidden="true">warning</span>
+      <p class="flex-1">{{ texto }}</p>
+      <button type="button" class="btn-icon shrink-0" aria-label="Descartar" (click)="descartarAviso()">
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
+    </div>
+  }
+
+  @if (panelAbierto()) {
+    <form class="card-base p-4 sm:p-5 flex flex-col gap-4" [formGroup]="formulario" (ngSubmit)="guardar()">
+      <div class="flex items-start justify-between gap-2">
+        <h2 class="text-headline-md text-on-surface">
+          {{ editando() ? 'Editar sede' : 'Nueva sede' }}
+        </h2>
+        <button type="button" class="btn-icon" aria-label="Cerrar" (click)="cerrarPanel()">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
+      </div>
+
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label for="nombre" class="block text-sm font-medium text-on-surface mb-1">Nombre *</label>
+          <input id="nombre" type="text" class="field-input" placeholder="Sede Norte"
+                 formControlName="nombre" />
+          @if (formulario.controls.nombre.invalid && formulario.controls.nombre.touched) {
+            <p class="mt-1 text-xs text-danger-text">Escribe el nombre de la sede.</p>
+          }
+          @for (e of erroresDe('nombre'); track e) {
+            <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+          }
+        </div>
+
+        <div>
+          <label for="direccion" class="block text-sm font-medium text-on-surface mb-1">Dirección *</label>
+          <input id="direccion" type="text" class="field-input" formControlName="direccion" />
+          @if (formulario.controls.direccion.invalid && formulario.controls.direccion.touched) {
+            <p class="mt-1 text-xs text-danger-text">Escribe la dirección.</p>
+          }
+          @for (e of erroresDe('direccion'); track e) {
+            <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+          }
+        </div>
+
+        <div>
+          <label for="telefono" class="block text-sm font-medium text-on-surface mb-1">Teléfono</label>
+          <input id="telefono" type="text" inputmode="tel" class="field-input" formControlName="telefono" />
+        </div>
+
+        <div>
+          <label for="nit" class="block text-sm font-medium text-on-surface mb-1">NIT</label>
+          <input id="nit" type="text" class="field-input" formControlName="nit" />
+        </div>
+
+        <div>
+          <label for="prefijo" class="block text-sm font-medium text-on-surface mb-1">
+            Prefijo de recibos
+          </label>
+          <input id="prefijo" type="text" maxlength="10" class="field-input uppercase font-mono"
+                 formControlName="prefijo_comprobante" />
+          <p class="mt-1 text-xs text-on-surface-variant">
+            Solo letras y números. Cambiarlo <strong>no renumera</strong> los recibos ya emitidos:
+            el histórico queda con los dos prefijos, que es lo correcto.
+          </p>
+          @for (e of erroresDe('prefijo_comprobante'); track e) {
+            <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+          }
+        </div>
+
+        <div class="sm:col-span-2">
+          <label for="encabezado" class="block text-sm font-medium text-on-surface mb-1">
+            Encabezado del recibo
+          </label>
+          <input id="encabezado" type="text" class="field-input"
+                 placeholder="Texto que aparece arriba en los recibos de esta sede"
+                 formControlName="encabezado_recibo" />
+        </div>
+      </div>
+
+      @if (!editando()) {
+        <p class="text-xs text-on-surface-variant">
+          La sede empieza sin existencias: los productos se cargan después desde Inventario.
+        </p>
+      }
+
+      <div class="flex flex-wrap gap-2">
+        <button type="submit" class="btn-primary" [disabled]="guardando()">
+          {{ guardando() ? 'Guardando…' : (editando() ? 'Guardar cambios' : 'Crear sede') }}
+        </button>
+        <button type="button" class="btn-secondary" [disabled]="guardando()" (click)="cerrarPanel()">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  }
+
+  @if (cargando()) {
+    <p class="text-sm text-on-surface-variant">Cargando…</p>
+  } @else {
+    <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+      @for (s of sedes(); track s.id) {
+        <div class="card-base p-4 sm:p-5 flex flex-col gap-3" [class.opacity-60]="!s.activa">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <h2 class="text-headline-md text-on-surface truncate">{{ s.nombre }}</h2>
+              <p class="text-sm text-on-surface-variant">{{ s.direccion }}</p>
+            </div>
+            <span [class]="s.activa ? 'badge-success' : 'badge-neutral'">
+              {{ s.activa ? 'Abierta' : 'Cerrada' }}
+            </span>
+          </div>
+
+          <dl class="text-sm flex flex-col gap-1 border-t border-outline-variant pt-3">
+            <div class="flex justify-between gap-2">
+              <dt class="text-on-surface-variant">Teléfono</dt>
+              <dd class="text-on-surface">{{ s.telefono || '—' }}</dd>
+            </div>
+            <div class="flex justify-between gap-2">
+              <dt class="text-on-surface-variant">NIT</dt>
+              <dd class="text-on-surface">{{ s.nit || '—' }}</dd>
+            </div>
+            <div class="flex justify-between gap-2">
+              <dt class="text-on-surface-variant">Prefijo de recibos</dt>
+              <dd class="text-on-surface font-mono">{{ s.prefijo_comprobante }}</dd>
+            </div>
+          </dl>
+
+          <div class="flex flex-wrap items-center gap-2 border-t border-outline-variant pt-3">
+            <button type="button" class="btn-secondary" [disabled]="ocupadoId() === s.id"
+                    (click)="abrirEdicion(s)">
+              Editar
+            </button>
+            @if (s.activa) {
+              <button type="button" class="text-sm text-on-surface-variant hover:text-danger-text px-2"
+                      [disabled]="ocupadoId() === s.id" (click)="cerrar(s)">
+                Cerrar sede
+              </button>
+            } @else {
+              <button type="button" class="text-sm text-primary hover:underline px-2"
+                      [disabled]="ocupadoId() === s.id" (click)="reabrir(s)">
+                Reabrir
+              </button>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>

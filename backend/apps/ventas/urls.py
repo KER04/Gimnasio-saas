@@ -18,10 +18,22 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import VentaViewSet
+from .views_caja import (
+    CategoriaGastoListView,
+    CategoriaIngresoListView,
+    GastoViewSet,
+    IngresoOtroViewSet,
+)
 
 router = DefaultRouter()
 router.register('ventas', VentaViewSet, basename='venta')
+# Movimientos de caja sin venta detrás (RF-24 y RF-07). Comparten app con las
+# ventas porque comparten tablas y el corte de caja los suma juntos.
+router.register('gastos', GastoViewSet, basename='gasto')
+router.register('ingresos', IngresoOtroViewSet, basename='ingreso')
 
 urlpatterns = [
+    path('categorias-gasto/', CategoriaGastoListView.as_view(), name='categorias-gasto'),
+    path('categorias-ingreso/', CategoriaIngresoListView.as_view(), name='categorias-ingreso'),
     path('', include(router.urls)),
 ]

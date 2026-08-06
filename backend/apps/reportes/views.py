@@ -17,19 +17,28 @@ dos, y su diferencia, en vez de elegir uno y llamarlo "ventas".
 
 ## Zona horaria
 
-El corte de caja sale de ``v_corte_diario``, que agrupa por la fecha ya
-convertida a la zona del gimnasio (``tenants.zona_horaria``). Los otros dos
-informes filtran con ``__date``, que usa ``settings.TIME_ZONE``. Hoy ambos
-valen ``America/Bogota`` y coinciden; si algún día un tenant se configura en
-otra zona, estos dos informes habría que pasarlos también a la zona del
-tenant para que no discrepen del corte por un día.
+TODOS los informes usan la zona horaria del GIMNASIO
+(``tenants.zona_horaria``), no la del servidor.
+
+El corte de caja lo hacía ya por su cuenta: sale de ``v_corte_diario``, que
+agrupa por la fecha convertida en SQL. Los demás filtraban con ``__date``,
+que usa ``settings.TIME_ZONE``, y coincidían solo porque todos los gimnasios
+estaban en ``America/Bogota``. Desde que el panel del proveedor permite
+cambiarle la zona a cada uno, esa coincidencia dejó de estar garantizada: un
+gimnasio en otro huso habría visto sus ventas de después de las 19:00
+contadas en el día siguiente, discrepando de su propio corte de caja por un
+día justo en las horas de más afluencia. Ver ``_filtrar_fechas``.
 
 ## Anuladas
 
 Se excluyen en los tres informes: una venta anulada no se vendió, y un pago
 anulado no entró. La vista de corte ya lo hace por su cuenta.
 """
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from zoneinfo import ZoneInfo
+
+from django.conf import settings
 
 from django.db.models import Count, DecimalField, F, Sum, Value
 from django.db.models.functions import Coalesce, TruncMonth
@@ -60,12 +69,46 @@ def _rango(request):
     return request.query_params.get('desde'), request.query_params.get('hasta')
 
 
-def _filtrar_fechas(qs, campo, desde, hasta):
+def _zona_del_gimnasio(request):
+    """La zona horaria del gimnasio de la petición, o la del servidor si no
+    se puede resolver (``request.tenant`` siempre existe en estas vistas,
+    pero fallar aquí no debe tumbar un informe)."""
+    tenant = getattr(request, 'tenant', None)
+    return getattr(tenant, 'zona_horaria', None) or settings.TIME_ZONE
+
+
+def _filtrar_fechas(qs, campo, desde, hasta, zona):
+    """Filtra por rango de fechas convirtiendo el instante a la zona del
+    GIMNASIO, no a la del servidor.
+
+    ``__date`` usa por defecto ``settings.TIME_ZONE``. Mientras todos los
+    gimnasios estuvieran en la misma zona daba igual, pero desde que el panel
+    del proveedor permite cambiársela a cada uno, esa suposición se rompe: un
+    gimnasio en otro huso vería sus ventas de después de las 19:00 contadas
+    en el día siguiente, mientras que su corte de caja
+    (``v_corte_diario``, que sí usa ``tenants.zona_horaria``) las contaría en
+    el día correcto. Los dos informes discreparían por un día justo en las
+    horas de más afluencia.
+    """
     if desde:
-        qs = qs.filter(**{f'{campo}__date__gte': desde})
+        qs = qs.filter(**{f'{campo}__gte': _inicio_del_dia(desde, zona)})
     if hasta:
-        qs = qs.filter(**{f'{campo}__date__lte': hasta})
+        # El día `hasta` va INCLUIDO: el límite es la medianoche del día
+        # siguiente, sin llegar a ella.
+        qs = qs.filter(**{f'{campo}__lt': _inicio_del_dia(hasta, zona) + timedelta(days=1)})
     return qs
+
+
+def _inicio_del_dia(fecha, zona):
+    """Medianoche de ``fecha`` en la zona ``zona``, como instante absoluto.
+
+    Se compara contra el timestamp crudo en vez de usar ``__date``: así el
+    límite del rango es exactamente el que vive el gimnasio, sin depender de
+    la zona con la que Django hable con la base de datos.
+    """
+    if isinstance(fecha, str):
+        fecha = date.fromisoformat(fecha)
+    return datetime.combine(fecha, time.min, tzinfo=ZoneInfo(zona))
 
 
 class ReporteVentasView(APIView):
@@ -80,12 +123,13 @@ class ReporteVentasView(APIView):
 
     def get(self, request):
         desde, hasta = _rango(request)
+        zona = _zona_del_gimnasio(request)
         sede = request.query_params.get('sede')
 
         ventas = Venta.objects.exclude(estado=Venta.EstadoVenta.ANULADA)
         if sede:
             ventas = ventas.filter(sede_id=sede)
-        ventas = _filtrar_fechas(ventas, 'fecha_hora', desde, hasta)
+        ventas = _filtrar_fechas(ventas, 'fecha_hora', desde, hasta, zona)
 
         agregado = ventas.aggregate(
             facturado=Coalesce(Sum('total'), _CERO),
@@ -100,7 +144,7 @@ class ReporteVentasView(APIView):
         )
         if sede:
             pagos = pagos.filter(venta__sede_id=sede)
-        pagos = _filtrar_fechas(pagos, 'fecha_hora', desde, hasta)
+        pagos = _filtrar_fechas(pagos, 'fecha_hora', desde, hasta, zona)
         cobrado = pagos.aggregate(total=Coalesce(Sum('monto'), _CERO))['total']
 
         por_estado = {
@@ -139,6 +183,9 @@ class ReporteCajaView(APIView):
 
     def get(self, request):
         desde, hasta = _rango(request)
+        # Sin `zona` a propósito: `v_corte_diario` ya agrupa por la fecha
+        # convertida a la del gimnasio, y aquí se filtra sobre esa columna
+        # DATE ya resuelta.
         sede = request.query_params.get('sede')
         agrupar = request.query_params.get('agrupar', 'dia')
 
@@ -215,10 +262,13 @@ class ReporteUtilidadView(APIView):
     catálogo en el momento de vender, no el de hoy).
 
     Un plan no tiene costo de adquisición: lo que cuesta prestarlo son el
-    alquiler, el personal y los servicios, que viven en ``gastos`` (RF-24) y
-    hoy no se registran desde ninguna parte. Por eso los ingresos por planes
-    se devuelven APARTE y sin utilidad asociada: sumarlos como si fueran
-    ganancia daría una cifra alegre y falsa.
+    alquiler, el personal y los servicios, que viven en ``gastos`` (RF-24).
+    Por eso los ingresos por planes se devuelven APARTE y sin utilidad
+    asociada: restarles un costo por unidad no significaría nada.
+
+    ``utilidad_neta`` sí junta las tres cosas -- utilidad de productos, más
+    ingresos por planes, menos gastos --, que es lo que se entiende por "la
+    ganancia". Ver la advertencia sobre bases temporales junto a su cálculo.
     """
 
     permission_classes = [TienePermiso]
@@ -226,12 +276,13 @@ class ReporteUtilidadView(APIView):
 
     def get(self, request):
         desde, hasta = _rango(request)
+        zona = _zona_del_gimnasio(request)
         sede = request.query_params.get('sede')
 
         lineas = DetalleVenta.objects.exclude(venta__estado=Venta.EstadoVenta.ANULADA)
         if sede:
             lineas = lineas.filter(venta__sede_id=sede)
-        lineas = _filtrar_fechas(lineas, 'venta__fecha_hora', desde, hasta)
+        lineas = _filtrar_fechas(lineas, 'venta__fecha_hora', desde, hasta, zona)
 
         #: Costo de la línea. `total_linea` ya viene multiplicado por la
         #: cantidad (columna generada), pero `costo_unitario` no.
@@ -288,7 +339,7 @@ class ReporteUtilidadView(APIView):
         saldos = VistaVentaSaldo.objects.filter(saldo__gt=0)
         if sede:
             saldos = saldos.filter(sede_id=sede)
-        saldos = _filtrar_fechas(saldos, 'fecha_hora', desde, hasta)
+        saldos = _filtrar_fechas(saldos, 'fecha_hora', desde, hasta, zona)
         pendiente = saldos.aggregate(total=Coalesce(Sum('saldo'), _CERO))['total']
 
         return Response({
@@ -300,13 +351,26 @@ class ReporteUtilidadView(APIView):
             },
             'planes': {'ingresos': str(planes['ingresos'])},
             'pendiente_de_cobro': str(pendiente),
-            # Se devuelven aunque no haya forma de registrarlos todavía: así
-            # el frontend puede decir "0 gastos registrados" en vez de callar
-            # que la utilidad neta no está contemplada.
             'gastos': {
                 'total': str(gastos_agregado['total']),
                 'registrados': gastos_agregado['numero'],
             },
+            # Utilidad de productos + ingresos por planes - gastos.
+            #
+            # Es la cifra que la gente llama "la ganancia", y por eso se
+            # calcula aquí en vez de dejar que cada pantalla la sume a su
+            # manera y salgan dos números distintos.
+            #
+            # ADVERTENCIA, y el frontend la repite en la pantalla: las tres
+            # partes NO comparten base temporal. La utilidad de productos se
+            # cuenta al VENDER (el producto ya salió del inventario) y los
+            # gastos al PAGARLOS. Un mes con mucha venta a crédito y el
+            # arriendo pagado sale peor de lo que fue, y el siguiente mejor.
+            # Es correcto y es la práctica habitual, pero hay que decirlo o
+            # alguien cuadrará mal.
+            'utilidad_neta': str(
+                utilidad + planes['ingresos'] - gastos_agregado['total'],
+            ),
             'detalle': detalle,
         })
 
@@ -405,6 +469,7 @@ class ReporteProductosView(APIView):
 
     def get(self, request):
         desde, hasta = _rango(request)
+        zona = _zona_del_gimnasio(request)
         sede = request.query_params.get('sede')
 
         lineas = DetalleVenta.objects.filter(
@@ -413,7 +478,7 @@ class ReporteProductosView(APIView):
         ).exclude(venta__estado=Venta.EstadoVenta.ANULADA)
         if sede:
             lineas = lineas.filter(venta__sede_id=sede)
-        lineas = _filtrar_fechas(lineas, 'venta__fecha_hora', desde, hasta)
+        lineas = _filtrar_fechas(lineas, 'venta__fecha_hora', desde, hasta, zona)
 
         vendido = (
             lineas.values('producto_id', 'producto__nombre')

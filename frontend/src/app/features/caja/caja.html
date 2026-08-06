@@ -1,0 +1,311 @@
+<div class="flex flex-col gap-5">
+  <div class="rounded-xl bg-primary px-5 py-5 sm:px-6 flex flex-wrap items-center justify-between gap-4">
+    <div>
+      <h1 class="text-headline-lg-mobile sm:text-headline-lg text-on-primary">Gastos e ingresos</h1>
+      <p class="mt-1 text-body-md text-primary-fixed">
+        Movimientos de caja que no vienen de una venta.
+      </p>
+    </div>
+    <button type="button" class="btn-inverted" (click)="abrirAlta()">
+      <span class="material-symbols-outlined" aria-hidden="true">add</span>
+      {{ pestana() === 'gastos' ? 'Nuevo gasto' : 'Nuevo ingreso' }}
+    </button>
+  </div>
+
+  @if (error()) {
+    <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2" role="alert">
+      {{ error() }}
+    </p>
+  }
+
+  <!-- Rango -->
+  <div class="card-base p-4 flex flex-wrap items-end gap-3">
+    <div>
+      <label for="desde" class="block text-xs text-on-surface-variant mb-1">Desde</label>
+      <input id="desde" type="date" class="field-input" [formControl]="desde" />
+    </div>
+    <div>
+      <label for="hasta" class="block text-xs text-on-surface-variant mb-1">Hasta</label>
+      <input id="hasta" type="date" class="field-input" [formControl]="hasta" />
+    </div>
+    <button type="button" class="btn-primary" (click)="cargar()">Aplicar</button>
+    <button type="button" class="btn-secondary" (click)="rangoMes()">Este mes</button>
+  </div>
+
+  <!-- Totales -->
+  <div class="grid sm:grid-cols-2 gap-4">
+    <div class="card-base p-4">
+      <p class="text-headline-lg text-danger-text">{{ dinero(totalGastos()) }}</p>
+      <p class="text-xs text-on-surface-variant mt-0.5">
+        Gastos del periodo · {{ gastos().length }} {{ gastos().length === 1 ? 'registro' : 'registros' }}
+      </p>
+    </div>
+    <div class="card-base p-4">
+      <p class="text-headline-lg text-success-text">{{ dinero(totalIngresos()) }}</p>
+      <p class="text-xs text-on-surface-variant mt-0.5">
+        Ingresos varios · {{ ingresos().length }} {{ ingresos().length === 1 ? 'registro' : 'registros' }}
+      </p>
+    </div>
+  </div>
+
+  <!-- Formulario -->
+  @if (panelAbierto()) {
+    <form class="card-base p-4 sm:p-5 flex flex-col gap-4" [formGroup]="formulario" (ngSubmit)="guardar()">
+      <div class="flex items-start justify-between gap-2">
+        <h2 class="text-headline-md text-on-surface">
+          {{ editandoId() === null ? 'Nuevo' : 'Editar' }}
+          {{ pestana() === 'gastos' ? 'gasto' : 'ingreso' }}
+        </h2>
+        <button type="button" class="btn-icon" aria-label="Cerrar" (click)="cerrarPanel()">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
+      </div>
+
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label for="categoria" class="block text-sm font-medium text-on-surface mb-1">Categoría *</label>
+          <select id="categoria" class="field-input" formControlName="categoria">
+            <option value="">Elige una…</option>
+            @if (pestana() === 'gastos') {
+              @for (c of categoriasGasto(); track c.id) {
+                <option [value]="c.id">{{ c.nombre }}</option>
+              }
+            } @else {
+              @for (c of categoriasIngreso(); track c.id) {
+                <option [value]="c.id">{{ nombreCategoriaIngreso(c) }}</option>
+              }
+            }
+          </select>
+          @if (formulario.controls.categoria.invalid && formulario.controls.categoria.touched) {
+            <p class="mt-1 text-xs text-danger-text">Elige una categoría.</p>
+          }
+          @for (e of erroresDeCategoria(); track e) {
+            <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+          }
+        </div>
+
+        <div>
+          <label for="monto" class="block text-sm font-medium text-on-surface mb-1">Monto *</label>
+          <input id="monto" type="text" inputmode="decimal" class="field-input" formControlName="monto" />
+          @if (formulario.controls.monto.invalid && formulario.controls.monto.touched) {
+            <p class="mt-1 text-xs text-danger-text">Escribe un monto válido.</p>
+          }
+          @for (e of erroresDe('monto'); track e) {
+            <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+          }
+        </div>
+
+        <div>
+          <label for="fecha" class="block text-sm font-medium text-on-surface mb-1">Fecha *</label>
+          <input id="fecha" type="date" class="field-input" formControlName="fecha" />
+          @for (e of erroresDe('fecha'); track e) {
+            <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+          }
+        </div>
+
+        @if (sedes().length > 1) {
+          <div>
+            <label for="sede" class="block text-sm font-medium text-on-surface mb-1">Sede *</label>
+            <select id="sede" class="field-input" formControlName="sede">
+              <option value="">Elige una…</option>
+              @for (s of sedes(); track s.id) {
+                <option [value]="s.id">{{ s.nombre }}</option>
+              }
+            </select>
+            @if (formulario.controls.sede.invalid && formulario.controls.sede.touched) {
+              <p class="mt-1 text-xs text-danger-text">Elige la sede.</p>
+            }
+          </div>
+        }
+
+        @if (pestana() === 'ingresos') {
+          <div>
+            <label for="forma" class="block text-sm font-medium text-on-surface mb-1">Forma de pago *</label>
+            <select id="forma" class="field-input" formControlName="forma_pago">
+              @for (f of formasPago; track f) {
+                <option [value]="f">{{ etiquetasFormaPago[f] }}</option>
+              }
+            </select>
+          </div>
+        }
+
+        <div class="sm:col-span-2">
+          <label for="descripcion" class="block text-sm font-medium text-on-surface mb-1">
+            Descripción *
+          </label>
+          <input id="descripcion" type="text" class="field-input"
+                 placeholder="Arriendo de agosto, nómina quincena 1…"
+                 formControlName="descripcion" />
+          <p class="mt-1 text-xs text-on-surface-variant">
+            Dentro de un mes nadie recordará qué fue "Otros 250.000".
+          </p>
+          @if (formulario.controls.descripcion.invalid && formulario.controls.descripcion.touched) {
+            <p class="mt-1 text-xs text-danger-text">Escribe de qué se trata.</p>
+          }
+          @for (e of erroresDe('descripcion'); track e) {
+            <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+          }
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-2">
+        <button type="submit" class="btn-primary" [disabled]="guardando()">
+          {{ guardando() ? 'Guardando…' : 'Guardar' }}
+        </button>
+        <button type="button" class="btn-secondary" [disabled]="guardando()" (click)="cerrarPanel()">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  }
+
+  <!-- Listado -->
+  <div class="card-base overflow-hidden">
+    <div class="flex border-b border-outline-variant">
+      <button
+        type="button"
+        class="flex-1 px-4 py-3 text-sm font-medium transition-colors"
+        [class]="pestana() === 'gastos'
+          ? 'text-primary border-b-2 border-primary'
+          : 'text-on-surface-variant hover:bg-surface-container-low'"
+        (click)="cambiarPestana('gastos')"
+      >
+        Gastos
+      </button>
+      <button
+        type="button"
+        class="flex-1 px-4 py-3 text-sm font-medium transition-colors"
+        [class]="pestana() === 'ingresos'
+          ? 'text-primary border-b-2 border-primary'
+          : 'text-on-surface-variant hover:bg-surface-container-low'"
+        (click)="cambiarPestana('ingresos')"
+      >
+        Ingresos varios
+      </button>
+    </div>
+
+    @if (cargando()) {
+      <p class="px-4 py-8 text-center text-sm text-on-surface-variant">Cargando…</p>
+    } @else if (pestana() === 'gastos') {
+      @if (gastos().length === 0) {
+        <div class="px-4 py-10 text-center">
+          <span class="material-symbols-outlined text-[40px] text-on-surface-variant" aria-hidden="true">
+            receipt_long
+          </span>
+          <p class="text-on-surface mt-2">No hay gastos en este periodo.</p>
+          <p class="text-sm text-on-surface-variant mt-1">
+            El arriendo, la nómina y los servicios se registran aquí, y así la utilidad
+            deja de ser solo el margen de los productos.
+          </p>
+        </div>
+      } @else {
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-surface-container-highest/50 text-left">
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Fecha</th>
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Concepto</th>
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Categoría</th>
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant text-right">Monto</th>
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant">
+              @for (g of gastos(); track g.id) {
+                <tr [class]="editandoId() === g.id ? 'bg-primary-container/20' : ''">
+                  <td class="px-4 py-3 text-on-surface-variant whitespace-nowrap">{{ fecha(g.fecha) }}</td>
+                  <td class="px-4 py-3">
+                    <p class="text-on-surface">{{ g.descripcion }}</p>
+                    <p class="text-xs text-on-surface-variant">
+                      {{ g.sede_nombre }} · {{ g.usuario_nombre }}
+                    </p>
+                  </td>
+                  <td class="px-4 py-3">
+                    <span class="badge-neutral">{{ g.categoria_nombre }}</span>
+                  </td>
+                  <td class="px-4 py-3 text-right font-semibold text-danger-text whitespace-nowrap">
+                    {{ dinero(g.monto) }}
+                  </td>
+                  <td class="px-4 py-3">
+                    <div class="flex items-center justify-end gap-1.5">
+                      <button type="button" class="btn-icon" title="Editar"
+                              [attr.aria-label]="'Editar ' + g.descripcion"
+                              [disabled]="ocupadoId() === g.id" (click)="abrirEdicionGasto(g)">
+                        <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                      </button>
+                      <button type="button" class="btn-icon" title="Eliminar"
+                              [attr.aria-label]="'Eliminar ' + g.descripcion"
+                              [disabled]="ocupadoId() === g.id" (click)="eliminarGasto(g)">
+                        <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    } @else {
+      @if (ingresos().length === 0) {
+        <div class="px-4 py-10 text-center">
+          <span class="material-symbols-outlined text-[40px] text-on-surface-variant" aria-hidden="true">
+            savings
+          </span>
+          <p class="text-on-surface mt-2">No hay ingresos varios en este periodo.</p>
+          <p class="text-sm text-on-surface-variant mt-1">
+            Matrículas, casilleros o alquiler de espacio: dinero que entra sin venta detrás.
+            Suma al corte de caja igual que un cobro.
+          </p>
+        </div>
+      } @else {
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-surface-container-highest/50 text-left">
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Fecha</th>
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Concepto</th>
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Forma de pago</th>
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant text-right">Monto</th>
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant">
+              @for (i of ingresos(); track i.id) {
+                <tr [class]="editandoId() === i.id ? 'bg-primary-container/20' : ''">
+                  <td class="px-4 py-3 text-on-surface-variant whitespace-nowrap">{{ fecha(i.fecha) }}</td>
+                  <td class="px-4 py-3">
+                    <p class="text-on-surface">{{ i.descripcion }}</p>
+                    <p class="text-xs text-on-surface-variant">
+                      {{ i.categoria_nombre }} · {{ i.usuario_nombre }}
+                    </p>
+                  </td>
+                  <td class="px-4 py-3">
+                    <span class="badge-neutral">{{ etiquetasFormaPago[i.forma_pago] }}</span>
+                  </td>
+                  <td class="px-4 py-3 text-right font-semibold text-success-text whitespace-nowrap">
+                    {{ dinero(i.monto) }}
+                  </td>
+                  <td class="px-4 py-3">
+                    <div class="flex items-center justify-end gap-1.5">
+                      <button type="button" class="btn-icon" title="Editar"
+                              [attr.aria-label]="'Editar ' + i.descripcion"
+                              [disabled]="ocupadoId() === i.id" (click)="abrirEdicionIngreso(i)">
+                        <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                      </button>
+                      <button type="button" class="btn-icon" title="Eliminar"
+                              [attr.aria-label]="'Eliminar ' + i.descripcion"
+                              [disabled]="ocupadoId() === i.id" (click)="eliminarIngreso(i)">
+                        <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    }
+  </div>
+</div>

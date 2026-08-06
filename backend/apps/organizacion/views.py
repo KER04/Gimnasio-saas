@@ -14,9 +14,10 @@ from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, Ou
 from apps.core.permissions import TienePermiso
 from apps.plataforma.aprovisionamiento import generar_password
 
-from .models import Rol, Sede, UsuarioSede
+from .models import Rol, SecuenciaComprobante, Sede, UsuarioSede
 from .serializers import (
     RolSerializer,
+    SedeAdminSerializer,
     SedeSerializer,
     UsuarioActualizarSerializer,
     UsuarioCrearSerializer,
@@ -42,6 +43,102 @@ class SedeListView(ListAPIView):
 
     def get_queryset(self):
         return Sede.objects.order_by('nombre')
+
+
+class SedeViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.CreateModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
+):
+    """``/api/sedes-admin/`` (``config.sedes``): gestión de sedes.
+
+    Va aparte de ``GET /api/sedes/``, que es el selector de sede que usa
+    TODA la aplicación y solo pide estar autenticado. Fundirlos obligaría a
+    exigir ``config.sedes`` para poder elegir dónde trabajas, que no tiene
+    sentido: un recepcionista necesita saber en qué sede está sin poder
+    crear sedes.
+
+    ## Crear una sede es más que insertar una fila
+
+    Cada sede necesita su fila en ``secuencias_comprobantes``, que es de
+    donde sale el número de cada recibo. Sin ella, la primera venta en esa
+    sede fallaría al numerar. Se crean en la MISMA transacción por eso.
+
+    ## No hay borrado
+
+    ``Venta``, ``Gasto``, ``IngresoOtro`` y el stock apuntan a la sede con
+    ``PROTECT``. Dar de baja es ``activa=False``, y el histórico sigue
+    diciendo dónde ocurrió cada cosa.
+    """
+
+    permission_classes = [TienePermiso]
+    permiso_requerido = 'config.sedes'
+    serializer_class = SedeAdminSerializer
+
+    def get_queryset(self):
+        return Sede.objects.order_by('-activa', 'nombre')
+
+    def list(self, request, *args, **kwargs):
+        """Por defecto todas, activas e inactivas: esta pantalla es la de
+        gestión, y esconder las dadas de baja haría que reactivarlas fuese
+        imposible."""
+        return Response(self.get_serializer(self.get_queryset(), many=True).data)
+
+    def perform_create(self, serializer):
+        with transaction.atomic():
+            sede = serializer.save(tenant_id=self.request.tenant_id)
+            # Sin esto, la primera venta en la sede nueva reventaría al
+            # buscar su consecutivo.
+            SecuenciaComprobante.objects.create(sede=sede, tenant_id=sede.tenant_id)
+
+    @action(detail=True, methods=['post'])
+    def desactivar(self, request, pk=None):
+        """Cierra una sede. Sus ventas, gastos y stock siguen ahí.
+
+        No se permite dejar el gimnasio sin ninguna sede activa: las ventas,
+        los cobros, la asistencia y los gastos ocurren SIEMPRE en una sede, y
+        sin ninguna el gimnasio no puede operar en absoluto.
+        """
+        sede = self.get_object()
+
+        if not Sede.objects.filter(activa=True).exclude(pk=sede.pk).exists():
+            return Response(
+                {
+                    'detail': (
+                        'Es la única sede activa. Sin ninguna sede no se puede vender, '
+                        'cobrar ni registrar asistencia: crea otra antes de cerrar esta.'
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        sede.activa = False
+        sede.save(update_fields=['activa'])
+
+        # Aviso, no bloqueo: quien solo trabajaba aquí se queda sin sede y no
+        # podrá vender hasta que se le asigne otra. Cerrar una sede es una
+        # decisión legítima; dejarla a medias sin avisar, no.
+        huerfanos = list(
+            Usuario.objects
+            .filter(activo=True, usuarios_sedes__sede=sede)
+            .exclude(usuarios_sedes__sede__activa=True)
+            .values_list('nombre', flat=True)
+            .distinct()
+        )
+
+        return Response({
+            **SedeAdminSerializer(sede).data,
+            'usuarios_sin_sede': huerfanos,
+        })
+
+    @action(detail=True, methods=['post'])
+    def activar(self, request, pk=None):
+        sede = self.get_object()
+        sede.activa = True
+        sede.save(update_fields=['activa'])
+        return Response(SedeAdminSerializer(sede).data)
 
 
 class RolListView(ListAPIView):

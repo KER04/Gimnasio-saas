@@ -143,19 +143,49 @@
           </div>
         }
 
-        <!-- La advertencia que evita leer mal la cifra: los planes no son
-             ganancia limpia, su costo son los gastos operativos. -->
+        <!-- Gastos y ganancia final. -->
+        <div class="mx-4 mb-3 flex items-center justify-between gap-3 rounded-[10px] bg-surface-container-low px-3 py-2.5">
+          <div>
+            <span class="text-sm text-on-surface">Gastos del periodo</span>
+            <span class="block text-xs text-on-surface-variant">
+              {{ u.gastos.registrados }} {{ u.gastos.registrados === 1 ? 'registro' : 'registros' }}
+            </span>
+          </div>
+          <span class="font-display text-lg font-bold text-danger-text">
+            −{{ dinero(u.gastos.total) }}
+          </span>
+        </div>
+
+        <div class="mx-4 mb-4 flex items-center justify-between gap-3 rounded-[10px] px-3 py-3"
+             [class]="esNegativo(u.utilidad_neta) ? 'bg-danger-bg' : 'bg-success-bg'">
+          <div>
+            <span class="text-sm font-semibold"
+                  [class]="esNegativo(u.utilidad_neta) ? 'text-danger-text' : 'text-success-text'">
+              Ganancia del periodo
+            </span>
+            <span class="block text-xs"
+                  [class]="esNegativo(u.utilidad_neta) ? 'text-danger-text' : 'text-success-text'">
+              Productos + planes − gastos
+            </span>
+          </div>
+          <span class="font-display text-xl font-bold"
+                [class]="esNegativo(u.utilidad_neta) ? 'text-danger-text' : 'text-success-text'">
+            {{ dinero(u.utilidad_neta) }}
+          </span>
+        </div>
+
+        <!-- La advertencia que evita leer mal la cifra. -->
         <div class="mx-4 mb-4 rounded-[10px] bg-warning-bg text-warning-text px-3 py-2 text-xs flex items-start gap-2">
           <span class="material-symbols-outlined shrink-0 text-base" aria-hidden="true">info</span>
           <span>
-            Los ingresos por planes <strong>no son ganancia</strong>: lo que cuesta prestarlos son el alquiler,
-            el personal y los servicios.
             @if (u.gastos.registrados === 0) {
-              Todavía no hay ningún gasto registrado, así que la utilidad NETA del gimnasio no se puede
-              calcular aún.
+              <strong>No hay ningún gasto registrado en este periodo</strong>, así que esta ganancia
+              está sin el alquiler, el personal ni los servicios: es margen bruto, no lo que queda.
+              Regístralos en Gastos e ingresos.
             } @else {
-              Gastos del periodo: <strong>{{ dinero(u.gastos.total) }}</strong> en {{ u.gastos.registrados }}
-              registro(s).
+              Las tres partes <strong>no se cuentan en el mismo momento</strong>: la utilidad de
+              productos se registra al vender y los gastos al pagarlos. Un mes con mucha venta a
+              crédito y el arriendo pagado sale peor de lo que fue, y el siguiente mejor.
             }
           </span>
         </div>

@@ -112,6 +112,17 @@ export interface ReporteUtilidad {
    */
   pendiente_de_cobro: string;
   gastos: { total: string; registrados: number };
+  /**
+   * Utilidad de productos + ingresos por planes − gastos. Lo que se entiende
+   * por "la ganancia".
+   *
+   * ADVERTENCIA: las tres partes no comparten base temporal. La utilidad de
+   * productos se cuenta al VENDER (el producto ya salió del inventario) y los
+   * gastos al PAGARLOS. Un mes con mucha venta a crédito y el arriendo pagado
+   * sale peor de lo que fue, y el siguiente mejor. Es correcto y es la
+   * práctica habitual, pero la pantalla tiene que decirlo.
+   */
+  utilidad_neta: string;
   detalle: UtilidadProducto[];
 }
 
