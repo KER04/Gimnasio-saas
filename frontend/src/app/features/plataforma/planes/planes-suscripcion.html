@@ -1,0 +1,180 @@
+<div class="flex flex-col gap-5">
+  <div class="rounded-xl bg-primary px-5 py-5 sm:px-6 flex flex-wrap items-center justify-between gap-4">
+    <div>
+      <h1 class="text-headline-lg-mobile sm:text-headline-lg text-on-primary">Planes de suscripción</h1>
+      <p class="mt-1 text-body-md text-primary-fixed">
+        Lo que le vendes a los gimnasios. El precio es <strong>por sede</strong>.
+      </p>
+    </div>
+    @if (puedeGestionar()) {
+      <button type="button" class="btn-inverted" (click)="abrirAlta()">
+        <span class="material-symbols-outlined" aria-hidden="true">add</span>
+        Nuevo plan
+      </button>
+    }
+  </div>
+
+  @if (error()) {
+    <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2" role="alert">
+      {{ error() }}
+    </p>
+  }
+
+  @if (panelAbierto()) {
+    <form class="card-base p-4 sm:p-5 flex flex-col gap-4" [formGroup]="formulario" (ngSubmit)="guardar()">
+      <h2 class="text-headline-md text-on-surface">
+        {{ planEditando() ? 'Editar plan' : 'Nuevo plan' }}
+      </h2>
+
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div class="sm:col-span-2">
+          <label for="nombre" class="block text-sm font-medium text-on-surface mb-1">Nombre *</label>
+          <input id="nombre" type="text" class="field-input" placeholder="Básico, Pro…"
+                 formControlName="nombre" />
+          @for (e of erroresDe('nombre'); track e) {
+            <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+          }
+        </div>
+
+        <div>
+          <label for="precio" class="block text-sm font-medium text-on-surface mb-1">
+            Precio por sede *
+          </label>
+          <input id="precio" type="text" inputmode="decimal" class="field-input"
+                 formControlName="precio_por_sede" />
+          <p class="mt-1 text-xs text-on-surface-variant">
+            Un gimnasio con tres sedes pagará el triple de esto.
+          </p>
+          @if (formulario.controls.precio_por_sede.invalid && formulario.controls.precio_por_sede.touched) {
+            <p class="mt-1 text-xs text-danger-text">Escribe un precio válido.</p>
+          }
+          @for (e of erroresDe('precio_por_sede'); track e) {
+            <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+          }
+        </div>
+
+        <div>
+          <label for="ciclo" class="block text-sm font-medium text-on-surface mb-1">Ciclo de cobro</label>
+          <select id="ciclo" class="field-input" formControlName="ciclo">
+            <option value="mensual">Mensual</option>
+            <option value="anual">Anual</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="border-t border-outline-variant pt-4 flex flex-col gap-4">
+        <div>
+          <p class="text-sm font-medium text-on-surface">Límites</p>
+          <p class="text-xs text-on-surface-variant mt-0.5">
+            Déjalos vacíos para "sin límite". Hoy son <strong>informativos</strong>: se ven aquí y
+            en la ficha del gimnasio, pero no impiden nada.
+          </p>
+        </div>
+
+        <div class="grid sm:grid-cols-3 gap-4">
+          <div>
+            <label for="max-sedes" class="block text-sm font-medium text-on-surface mb-1">Máx. sedes</label>
+            <input id="max-sedes" type="number" min="1" class="field-input" formControlName="max_sedes" />
+            @for (e of erroresDe('max_sedes'); track e) {
+              <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+            }
+          </div>
+          <div>
+            <label for="max-usuarios" class="block text-sm font-medium text-on-surface mb-1">Máx. usuarios</label>
+            <input id="max-usuarios" type="number" min="1" class="field-input" formControlName="max_usuarios" />
+            @for (e of erroresDe('max_usuarios'); track e) {
+              <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+            }
+          </div>
+          <div>
+            <label for="max-clientes" class="block text-sm font-medium text-on-surface mb-1">Máx. clientes</label>
+            <input id="max-clientes" type="number" min="1" class="field-input" formControlName="max_clientes_activos" />
+            @for (e of erroresDe('max_clientes_activos'); track e) {
+              <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+            }
+          </div>
+        </div>
+
+        <label class="inline-flex items-center gap-2 text-sm text-on-surface">
+          <input type="checkbox" class="size-4" formControlName="activo" />
+          Disponible para contratar
+        </label>
+      </div>
+
+      <div class="flex flex-wrap gap-2">
+        <button type="submit" class="btn-primary" [disabled]="guardando()">
+          {{ guardando() ? 'Guardando…' : 'Guardar plan' }}
+        </button>
+        <button type="button" class="btn-secondary" [disabled]="guardando()" (click)="cerrarPanel()">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  }
+
+  @if (cargando()) {
+    <p class="text-sm text-on-surface-variant">Cargando planes…</p>
+  } @else if (planes().length === 0) {
+    <div class="card-base p-8 text-center">
+      <p class="text-on-surface">Todavía no hay ningún plan.</p>
+      <p class="text-sm text-on-surface-variant mt-1">
+        Crea el primero para poder contratárselo a un gimnasio.
+      </p>
+    </div>
+  } @else {
+    <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+      @for (p of planes(); track p.id) {
+        <div class="card-base p-4 sm:p-5 flex flex-col gap-3" [class.opacity-60]="!p.activo">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <h3 class="text-headline-md text-on-surface truncate">{{ p.nombre }}</h3>
+              <p class="text-sm text-on-surface-variant">
+                {{ p.ciclo === 'anual' ? 'Cobro anual' : 'Cobro mensual' }}
+              </p>
+            </div>
+            @if (!p.activo) {
+              <span class="badge-neutral shrink-0">Dado de baja</span>
+            }
+          </div>
+
+          <div>
+            <p class="text-headline-lg text-on-surface">{{ dinero(p.precio_por_sede) }}</p>
+            <p class="text-xs text-on-surface-variant">por sede y {{ p.ciclo === 'anual' ? 'año' : 'mes' }}</p>
+          </div>
+
+          <dl class="text-sm flex flex-col gap-1 border-t border-outline-variant pt-3">
+            <div class="flex justify-between gap-2">
+              <dt class="text-on-surface-variant">Sedes</dt>
+              <dd class="text-on-surface">{{ limiteTexto(p.max_sedes) }}</dd>
+            </div>
+            <div class="flex justify-between gap-2">
+              <dt class="text-on-surface-variant">Usuarios</dt>
+              <dd class="text-on-surface">{{ limiteTexto(p.max_usuarios) }}</dd>
+            </div>
+            <div class="flex justify-between gap-2">
+              <dt class="text-on-surface-variant">Clientes</dt>
+              <dd class="text-on-surface">{{ limiteTexto(p.max_clientes_activos) }}</dd>
+            </div>
+          </dl>
+
+          @if (puedeGestionar()) {
+            <div class="flex flex-wrap gap-2 border-t border-outline-variant pt-3">
+              <button type="button" class="btn-secondary" (click)="abrirEdicion(p)">Editar</button>
+              @if (p.activo) {
+                <button type="button" class="text-sm text-on-surface-variant hover:text-danger-text px-2"
+                        (click)="darDeBaja(p)">
+                  Dar de baja
+                </button>
+              } @else {
+                <button type="button" class="text-sm text-primary hover:underline px-2"
+                        (click)="reactivar(p)">
+                  Reactivar
+                </button>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  }
+</div>

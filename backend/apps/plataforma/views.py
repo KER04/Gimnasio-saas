@@ -13,8 +13,9 @@ listado no vienen de esas tablas, sino de ``v_plataforma_resumen_tenants``
 (ver el docstring de la migración ``plataforma.0002``).
 """
 from datetime import timedelta
+from decimal import Decimal
 
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import Prefetch
 from django.utils import timezone
 from rest_framework import mixins, status, viewsets
@@ -33,6 +34,13 @@ from apps.core.tenant import tenant_context
 from apps.organizacion.models import Usuario
 
 from .aprovisionamiento import AprovisionamientoError, aprovisionar_tenant, generar_password
+from .facturacion import (
+    FacturacionError,
+    anular_factura,
+    emitir_factura,
+    marcar_mora,
+    marcar_pagada,
+)
 from .auth import (
     AutenticacionPlataforma,
     EsAdministradorDePlataforma,
@@ -41,10 +49,14 @@ from .auth import (
     refrescar_acceso,
 )
 from .metricas import anexar_recuentos
-from .models import Suscripcion, Tenant, UsuarioPlataforma
+from .models import FacturaSuscripcion, PlanSuscripcion, Suscripcion, Tenant, UsuarioPlataforma
 from .serializers import (
+    AsignarSuscripcionSerializer,
     CambiarPasswordPlataformaSerializer,
     CambioEstadoSerializer,
+    FacturaSuscripcionSerializer,
+    PlanSuscripcionSerializer,
+    SuscripcionDetalleSerializer,
     LoginPlataformaSerializer,
     RefrescoPlataformaSerializer,
     RestablecerPasswordSerializer,
@@ -125,6 +137,108 @@ class YoPlataformaView(APIView):
         return Response(UsuarioPlataformaSerializer(request.user).data)
 
 
+class PlanSuscripcionViewSet(viewsets.ModelViewSet):
+    """``/api/plataforma/planes-suscripcion/``: el catálogo que vendes.
+
+    Baja LÓGICA, nunca borrado: ``Suscripcion.plan_suscripcion`` es
+    ``PROTECT``, y aunque no lo fuera, borrar un plan con contratos vivos
+    dejaría el histórico de facturación sin poder explicar de dónde salió
+    cada importe.
+    """
+
+    authentication_classes = [AutenticacionPlataforma]
+    serializer_class = PlanSuscripcionSerializer
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [EsPersonalDePlataforma()]
+        return [EsAdministradorDePlataforma()]
+
+    def get_queryset(self):
+        qs = PlanSuscripcion.objects.all().order_by('precio_por_sede', 'nombre')
+        # Por defecto solo los vigentes. La pantalla de gestión pide
+        # `?incluir_inactivos=1` para poder reactivar uno dado de baja: si no,
+        # la baja sería un viaje sin retorno.
+        if self.request.query_params.get('incluir_inactivos', '') not in ('1', 'true', 'True'):
+            qs = qs.filter(activo=True)
+        return qs
+
+    def destroy(self, request, *args, **kwargs):
+        plan = self.get_object()
+        plan.activo = False
+        plan.save(update_fields=['activo'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class CobrosView(APIView):
+    """``/api/plataforma/cobros/``: quién te debe dinero.
+
+    Es, para ti, lo que el informe de cartera es para tus gimnasios. No
+    admite rango de fechas por el mismo motivo: una deuda no pertenece a un
+    mes, sigue viva hasta que se cobra.
+    """
+
+    authentication_classes = [AutenticacionPlataforma]
+    permission_classes = [EsPersonalDePlataforma]
+
+    def get(self, request):
+        hoy = timezone.localdate()
+        suscripciones = (
+            Suscripcion.objects
+            .exclude(estado=Suscripcion.EstadoSuscripcion.CANCELADA)
+            .select_related('tenant', 'plan_suscripcion')
+            .prefetch_related('facturas')
+        )
+
+        deudores = []
+        total = Decimal('0')
+        for suscripcion in suscripciones:
+            pendientes = [
+                f for f in suscripcion.facturas.all()
+                if f.estado == FacturaSuscripcion.EstadoFactura.EMITIDA
+            ]
+            if not pendientes:
+                continue
+
+            saldo = sum((f.monto for f in pendientes), Decimal('0'))
+            total += saldo
+            deudores.append({
+                'tenant': {
+                    'uuid_publico': str(suscripcion.tenant.uuid_publico),
+                    'nombre_comercial': suscripcion.tenant.nombre_comercial,
+                    'subdominio': suscripcion.tenant.subdominio,
+                    'estado': suscripcion.tenant.estado,
+                },
+                'plan': suscripcion.plan_suscripcion.nombre,
+                'estado_suscripcion': suscripcion.estado,
+                'saldo': str(saldo),
+                'facturas': FacturaSuscripcionSerializer(
+                    sorted(pendientes, key=lambda f: f.periodo_inicio), many=True,
+                ).data,
+                # Días que lleva vencida la factura pendiente más antigua,
+                # ya descontado el plazo de gracia. Ordena la conversación
+                # mejor que el importe: quien lleva tres meses sin pagar es
+                # más urgente que quien debe más y va al día.
+                #
+                # Nunca negativo: una factura recién emitida y todavía dentro
+                # de su plazo no está atrasada, está al día. Enseñar "-5 días
+                # de atraso" no significa nada para quien lo lee.
+                'dias_de_atraso': max(
+                    0,
+                    max(
+                        (hoy - f.fecha_emision).days - suscripcion.dias_gracia
+                        for f in pendientes
+                    ),
+                ),
+            })
+
+        deudores.sort(key=lambda d: d['dias_de_atraso'], reverse=True)
+        return Response({
+            'deudores': deudores,
+            'totales': {'saldo': str(total), 'gimnasios': len(deudores)},
+        })
+
+
 class CambiarPasswordPlataformaView(APIView):
     """``POST /api/plataforma/cambiar-password/``.
 
@@ -178,10 +292,19 @@ class TenantViewSet(
 
     _ACCIONES_DE_ESCRITURA = (
         'create', 'update', 'partial_update', 'estado', 'restablecer_password',
+        'cancelar_suscripcion', 'emitir_factura_del_periodo',
+        'pagar_factura', 'anular_factura_emitida',
     )
 
+    def _es_escritura(self):
+        # `suscripcion` sirve GET y POST en la misma acción: el permiso no
+        # puede salir solo del nombre.
+        if self.action == 'suscripcion':
+            return self.request.method == 'POST'
+        return self.action in self._ACCIONES_DE_ESCRITURA
+
     def get_permissions(self):
-        if self.action in self._ACCIONES_DE_ESCRITURA:
+        if self._es_escritura():
             return [EsAdministradorDePlataforma()]
         return [EsPersonalDePlataforma()]
 
@@ -410,6 +533,127 @@ class TenantViewSet(
             'password': password,
             'subdominio': tenant.subdominio,
         })
+
+    # -- Suscripción y facturación ----------------------------------------
+
+    def _suscripcion_vigente(self, tenant):
+        return tenant.suscripciones.exclude(
+            estado=Suscripcion.EstadoSuscripcion.CANCELADA,
+        ).select_related('plan_suscripcion').prefetch_related('facturas').first()
+
+    @action(detail=True, methods=['get', 'post'], url_path='suscripcion')
+    def suscripcion(self, request, uuid_publico=None):
+        """``GET`` devuelve la suscripción viva con sus facturas.
+        ``POST`` contrata un plan, o cambia el que ya tenía.
+
+        Cambiar de plan CIERRA la suscripción anterior y abre una nueva, en
+        vez de reescribir la que había. La restricción ``uq_suscripciones_vigente``
+        obliga a que solo haya una viva por gimnasio, y además así queda el
+        histórico: qué plan tenía antes, desde cuándo y hasta cuándo. Sus
+        facturas siguen colgando de la suscripción vieja, que es donde tienen
+        sentido.
+        """
+        tenant = self.get_object()
+
+        if request.method == 'GET':
+            suscripcion = self._suscripcion_vigente(tenant)
+            if suscripcion is None:
+                return Response(None)
+            return Response(SuscripcionDetalleSerializer(suscripcion).data)
+
+        entrada = AsignarSuscripcionSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+        datos = entrada.validated_data
+
+        with transaction.atomic():
+            anterior = self._suscripcion_vigente(tenant)
+            if anterior is not None:
+                anterior.estado = Suscripcion.EstadoSuscripcion.CANCELADA
+                anterior.fecha_fin = timezone.localdate()
+                anterior.save(update_fields=['estado', 'fecha_fin'])
+
+            suscripcion = Suscripcion.objects.create(
+                tenant=tenant,
+                plan_suscripcion=datos['plan_suscripcion'],
+                fecha_inicio=datos['fecha_inicio'],
+                proximo_corte=datos['proximo_corte'],
+                **({'dias_gracia': datos['dias_gracia']} if 'dias_gracia' in datos else {}),
+            )
+
+        return Response(
+            SuscripcionDetalleSerializer(suscripcion).data, status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=['post'], url_path='cancelar-suscripcion')
+    def cancelar_suscripcion(self, request, uuid_publico=None):
+        """Termina el contrato. NO toca el estado del gimnasio: dejar de
+        cobrarle y apagarle el negocio son dos decisiones distintas, y la
+        segunda tiene su propia acción con confirmación.
+
+        Las facturas pendientes siguen pendientes: cancelar un contrato no
+        perdona lo ya facturado.
+        """
+        tenant = self.get_object()
+        suscripcion = self._suscripcion_vigente(tenant)
+        if suscripcion is None:
+            return Response(
+                {'detail': 'Este gimnasio no tiene ninguna suscripción activa.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        suscripcion.estado = Suscripcion.EstadoSuscripcion.CANCELADA
+        suscripcion.fecha_fin = timezone.localdate()
+        suscripcion.save(update_fields=['estado', 'fecha_fin'])
+        return Response(SuscripcionDetalleSerializer(suscripcion).data)
+
+    @action(detail=True, methods=['post'], url_path='emitir-factura')
+    def emitir_factura_del_periodo(self, request, uuid_publico=None):
+        """Emite la factura del periodo que arranca en ``proximo_corte``."""
+        tenant = self.get_object()
+        suscripcion = self._suscripcion_vigente(tenant)
+        if suscripcion is None:
+            return Response(
+                {'detail': 'Este gimnasio no tiene ninguna suscripción activa.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            factura = emitir_factura(suscripcion)
+        except FacturacionError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        marcar_mora(suscripcion)
+        return Response(
+            FacturaSuscripcionSerializer(factura).data, status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=['post'], url_path='facturas/(?P<factura_id>[0-9]+)/pagar')
+    def pagar_factura(self, request, uuid_publico=None, factura_id=None):
+        return self._operar_sobre_factura(marcar_pagada, factura_id)
+
+    @action(detail=True, methods=['post'], url_path='facturas/(?P<factura_id>[0-9]+)/anular')
+    def anular_factura_emitida(self, request, uuid_publico=None, factura_id=None):
+        return self._operar_sobre_factura(anular_factura, factura_id)
+
+    def _operar_sobre_factura(self, operacion, factura_id):
+        """El id de la factura se busca DENTRO del gimnasio de la URL: así un
+        id de otro cliente devuelve 404 en vez de operarse por error."""
+        tenant = self.get_object()
+        factura = FacturaSuscripcion.objects.filter(
+            pk=factura_id, suscripcion__tenant=tenant,
+        ).select_related('suscripcion').first()
+        if factura is None:
+            return Response(
+                {'detail': 'Esa factura no existe en este gimnasio.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            operacion(factura)
+        except FacturacionError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(FacturaSuscripcionSerializer(factura).data)
 
     @action(detail=True, methods=['post'])
     def estado(self, request, uuid_publico=None):

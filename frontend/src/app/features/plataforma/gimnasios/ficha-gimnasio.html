@@ -241,6 +241,200 @@
       }
     </section>
 
+    <!-- Suscripción y facturación. -->
+    @if (!editando()) {
+      <section class="card-base p-4 sm:p-5 flex flex-col gap-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 class="text-headline-md text-on-surface">Suscripción</h2>
+            <p class="text-sm text-on-surface-variant mt-0.5">
+              Lo que este gimnasio te paga a ti.
+            </p>
+          </div>
+          @if (suscripcion(); as s) {
+            <span [class]="s.estado === 'mora' ? 'badge-danger' : (s.estado === 'cancelada' ? 'badge-neutral' : 'badge-success')">
+              {{ etiquetaSuscripcion(s.estado) }}
+            </span>
+          }
+        </div>
+
+        @if (errorSuscripcion()) {
+          <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">
+            {{ errorSuscripcion() }}
+          </p>
+        }
+
+        @if (cargandoSuscripcion()) {
+          <p class="text-sm text-on-surface-variant">Cargando…</p>
+        } @else if (suscripcion(); as s) {
+          @if (s.estado !== 'cancelada') {
+            <dl class="grid sm:grid-cols-3 gap-3">
+              <div>
+                <dt class="text-xs text-on-surface-variant">Plan</dt>
+                <dd class="text-on-surface mt-0.5">{{ s.plan_nombre }}</dd>
+              </div>
+              <div>
+                <dt class="text-xs text-on-surface-variant">Precio por sede</dt>
+                <dd class="text-on-surface mt-0.5">
+                  {{ dinero(s.plan_precio_por_sede) }}
+                  <span class="text-xs text-on-surface-variant">
+                    /{{ s.plan_ciclo === 'anual' ? 'año' : 'mes' }}
+                  </span>
+                </dd>
+              </div>
+              <div>
+                <dt class="text-xs text-on-surface-variant">Próximo cobro</dt>
+                <dd class="text-on-surface mt-0.5">{{ fecha(s.proximo_corte) }}</dd>
+              </div>
+            </dl>
+
+            @if (s.estado === 'mora') {
+              <p class="rounded-[10px] bg-warning-bg text-warning-text text-sm px-3 py-2">
+                Tiene facturas vencidas. El gimnasio <strong>sigue funcionando</strong>: estar en
+                mora no le corta el servicio. Suspenderlo se decide abajo, a mano.
+              </p>
+            }
+          } @else {
+            <p class="text-sm text-on-surface-variant">
+              El contrato terminó el {{ fecha(s.fecha_fin) }}. El gimnasio sigue funcionando.
+            </p>
+          }
+
+          @if (puedeGestionar() && !panelContratar()) {
+            <div class="flex flex-wrap gap-2">
+              @if (hayPeriodoQueFacturar()) {
+                <button type="button" class="btn-primary" [disabled]="ocupadoSuscripcion()"
+                        (click)="emitirFactura()">
+                  <span class="material-symbols-outlined text-[20px]" aria-hidden="true">receipt_long</span>
+                  {{ ocupadoSuscripcion() ? 'Emitiendo…' : 'Emitir factura del periodo' }}
+                </button>
+              }
+              <button type="button" class="btn-secondary" (click)="abrirContratar()">
+                {{ s.estado === 'cancelada' ? 'Contratar un plan' : 'Cambiar de plan' }}
+              </button>
+              @if (s.estado !== 'cancelada') {
+                <button type="button" class="text-sm text-on-surface-variant hover:text-danger-text px-2"
+                        [disabled]="ocupadoSuscripcion()" (click)="cancelarSuscripcion()">
+                  Terminar contrato
+                </button>
+              }
+            </div>
+          }
+
+          @if (s.facturas.length > 0) {
+            <div class="overflow-x-auto border-t border-outline-variant pt-3">
+              <table class="w-full text-sm min-w-[560px]">
+                <thead>
+                  <tr class="text-left text-xs text-on-surface-variant">
+                    <th class="py-1.5 pr-3 font-medium">Periodo</th>
+                    <th class="py-1.5 pr-3 font-medium">Sedes</th>
+                    <th class="py-1.5 pr-3 font-medium text-right">Importe</th>
+                    <th class="py-1.5 pr-3 font-medium">Estado</th>
+                    <th class="py-1.5 font-medium text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (f of s.facturas; track f.id) {
+                    <tr class="border-t border-outline-variant">
+                      <td class="py-2 pr-3 text-on-surface whitespace-nowrap">
+                        {{ fecha(f.periodo_inicio) }} – {{ fecha(f.periodo_fin) }}
+                      </td>
+                      <td class="py-2 pr-3 text-on-surface-variant">{{ f.sedes_facturadas }}</td>
+                      <td class="py-2 pr-3 text-on-surface text-right">{{ dinero(f.monto) }}</td>
+                      <td class="py-2 pr-3">
+                        <span [class]="claseFactura(f.estado)">{{ etiquetaFactura(f.estado) }}</span>
+                      </td>
+                      <td class="py-2 text-right whitespace-nowrap">
+                        @if (puedeGestionar() && f.estado === 'emitida') {
+                          <button type="button" class="text-sm text-primary hover:underline px-1"
+                                  [disabled]="ocupadoSuscripcion()" (click)="pagarFactura(f)">
+                            Cobrar
+                          </button>
+                          <button type="button" class="text-sm text-on-surface-variant hover:text-danger-text px-1"
+                                  [disabled]="ocupadoSuscripcion()" (click)="anularFactura(f)">
+                            Anular
+                          </button>
+                        } @else if (f.estado === 'pagada') {
+                          <span class="text-xs text-on-surface-variant">
+                            Cobrada el {{ fecha(f.fecha_pago) }}
+                          </span>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        } @else {
+          <p class="text-sm text-on-surface-variant">
+            Este gimnasio no tiene ningún plan contratado, así que no se le está facturando nada.
+          </p>
+          @if (puedeGestionar() && !panelContratar()) {
+            <div>
+              <button type="button" class="btn-primary" (click)="abrirContratar()">
+                Contratar un plan
+              </button>
+            </div>
+          }
+        }
+
+        @if (panelContratar()) {
+          <form class="rounded-[10px] bg-surface-container-low p-4 flex flex-col gap-3"
+                [formGroup]="formContratar" (ngSubmit)="contratar()">
+            <p class="text-sm font-medium text-on-surface">
+              {{ suscripcion() && suscripcion()!.estado !== 'cancelada' ? 'Cambiar de plan' : 'Contratar un plan' }}
+            </p>
+
+            @if (planesDisponibles().length === 0) {
+              <p class="text-sm text-on-surface-variant">
+                No hay ningún plan disponible. Crea uno en la sección Planes.
+              </p>
+            } @else {
+              <div>
+                <label for="plan" class="block text-sm font-medium text-on-surface mb-1">Plan *</label>
+                <select id="plan" class="field-input" formControlName="plan_suscripcion">
+                  <option value="">Elige uno…</option>
+                  @for (p of planesDisponibles(); track p.id) {
+                    <option [value]="p.id">
+                      {{ p.nombre }} — {{ dinero(p.precio_por_sede) }} por sede/{{ p.ciclo === 'anual' ? 'año' : 'mes' }}
+                    </option>
+                  }
+                </select>
+              </div>
+
+              <div>
+                <label for="corte" class="block text-sm font-medium text-on-surface mb-1">
+                  Primer cobro
+                </label>
+                <input id="corte" type="date" class="field-input" formControlName="proximo_corte" />
+                <p class="mt-1 text-xs text-on-surface-variant">
+                  Si lo dejas vacío se cobra desde hoy.
+                </p>
+              </div>
+
+              @if (suscripcion() && suscripcion()!.estado !== 'cancelada') {
+                <p class="text-xs text-on-surface-variant">
+                  El plan actual se cerrará hoy y empezará uno nuevo. Sus facturas anteriores se
+                  conservan.
+                </p>
+              }
+
+              <div class="flex flex-wrap gap-2">
+                <button type="submit" class="btn-primary" [disabled]="ocupadoSuscripcion()">
+                  {{ ocupadoSuscripcion() ? 'Guardando…' : 'Confirmar' }}
+                </button>
+                <button type="button" class="btn-secondary" [disabled]="ocupadoSuscripcion()"
+                        (click)="cerrarContratar()">
+                  Cancelar
+                </button>
+              </div>
+            }
+          </form>
+        }
+      </section>
+    }
+
     <!-- Usuarios del gimnasio. Existe para poder rescatar a quien no puede
          entrar, no para administrar personal ajeno. -->
     @if (!editando()) {

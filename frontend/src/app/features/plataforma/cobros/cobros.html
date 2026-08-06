@@ -1,0 +1,98 @@
+<div class="flex flex-col gap-5">
+  <div class="rounded-xl bg-primary px-5 py-5 sm:px-6">
+    <h1 class="text-headline-lg-mobile sm:text-headline-lg text-on-primary">Cobros pendientes</h1>
+    <p class="mt-1 text-body-md text-primary-fixed">
+      Facturas de suscripción emitidas y sin pagar. Ordenadas por tiempo de atraso, no por importe.
+    </p>
+  </div>
+
+  @if (error()) {
+    <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2" role="alert">
+      {{ error() }}
+    </p>
+  }
+
+  @if (cargando()) {
+    <p class="text-sm text-on-surface-variant">Calculando…</p>
+  } @else if (datos(); as d) {
+    @if (d.deudores.length === 0) {
+      <div class="card-base p-8 text-center">
+        <span class="material-symbols-outlined text-[40px] text-success-text" aria-hidden="true">
+          check_circle
+        </span>
+        <p class="text-on-surface mt-2">No te debe nadie.</p>
+        <p class="text-sm text-on-surface-variant mt-1">
+          Todas las facturas emitidas están cobradas.
+        </p>
+      </div>
+    } @else {
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div class="card-base p-4">
+          <p class="text-headline-lg text-on-surface">{{ dinero(d.totales.saldo) }}</p>
+          <p class="text-xs text-on-surface-variant mt-0.5">Total por cobrar</p>
+        </div>
+        <div class="card-base p-4">
+          <p class="text-headline-lg text-on-surface">{{ d.totales.gimnasios }}</p>
+          <p class="text-xs text-on-surface-variant mt-0.5">
+            {{ d.totales.gimnasios === 1 ? 'Gimnasio con deuda' : 'Gimnasios con deuda' }}
+          </p>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-4">
+        @for (deudor of d.deudores; track deudor.tenant.uuid_publico) {
+          <section class="card-base p-4 sm:p-5 flex flex-col gap-3">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="min-w-0">
+                <button type="button" class="text-left" (click)="irAlGimnasio(deudor)">
+                  <h2 class="text-headline-md text-on-surface hover:underline truncate">
+                    {{ deudor.tenant.nombre_comercial }}
+                  </h2>
+                </button>
+                <p class="text-xs text-on-surface-variant font-mono">
+                  {{ deudor.tenant.subdominio }} · {{ deudor.plan }}
+                </p>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <span [class]="claseAtraso(deudor.dias_de_atraso)">
+                  {{ textoAtraso(deudor.dias_de_atraso) }}
+                </span>
+                <p class="text-headline-md text-on-surface">{{ dinero(deudor.saldo) }}</p>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm min-w-[420px]">
+                <thead>
+                  <tr class="text-left text-xs text-on-surface-variant">
+                    <th class="py-1.5 pr-3 font-medium">Periodo</th>
+                    <th class="py-1.5 pr-3 font-medium">Emitida</th>
+                    <th class="py-1.5 pr-3 font-medium">Sedes</th>
+                    <th class="py-1.5 font-medium text-right">Importe</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (f of deudor.facturas; track f.id) {
+                    <tr class="border-t border-outline-variant">
+                      <td class="py-2 pr-3 text-on-surface">
+                        {{ fecha(f.periodo_inicio) }} – {{ fecha(f.periodo_fin) }}
+                      </td>
+                      <td class="py-2 pr-3 text-on-surface-variant">{{ fecha(f.fecha_emision) }}</td>
+                      <td class="py-2 pr-3 text-on-surface-variant">{{ f.sedes_facturadas }}</td>
+                      <td class="py-2 text-on-surface text-right">{{ dinero(f.monto) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            <p class="text-xs text-on-surface-variant border-t border-outline-variant pt-3">
+              Se cobra desde la ficha del gimnasio. Estar en mora
+              <strong>no le corta el servicio</strong>: suspender se decide a mano.
+            </p>
+          </section>
+        }
+      </div>
+    }
+  }
+</div>

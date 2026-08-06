@@ -5,9 +5,16 @@ import { ActivatedRoute, Router } from '@angular/router';
 
 import { PlataformaService } from '../../../core/services/plataforma.service';
 import {
+  ETIQUETAS_ESTADO_FACTURA,
+  ETIQUETAS_ESTADO_SUSCRIPCION,
   ETIQUETAS_ESTADO_TENANT,
+  EstadoFactura,
+  EstadoSuscripcion,
   EstadoTenant,
+  FacturaSuscripcion,
   PasswordRestablecida,
+  PlanSuscripcion,
+  SuscripcionDetalle,
   TenantDetalle,
   UsuarioDeGimnasio,
 } from '../../../core/models/plataforma.model';
@@ -98,6 +105,7 @@ export class PlataformaFichaGimnasio {
     }
     this.cargar(uuid);
     this.cargarUsuarios(uuid);
+    this.cargarSuscripcion(uuid);
   }
 
   private cargar(uuid: string): void {
@@ -244,6 +252,202 @@ export class PlataformaFichaGimnasio {
   protected consecuenciaDe(estado: EstadoTenant): string {
     return CONSECUENCIA_ESTADO[estado];
   }
+
+  // --- Suscripción y facturación ---------------------------------------
+
+  protected readonly suscripcion = signal<SuscripcionDetalle | null>(null);
+  protected readonly cargandoSuscripcion = signal(false);
+  protected readonly planesDisponibles = signal<PlanSuscripcion[]>([]);
+  protected readonly errorSuscripcion = signal<string | null>(null);
+  protected readonly ocupadoSuscripcion = signal(false);
+  protected readonly panelContratar = signal(false);
+
+  protected readonly formContratar = this.fb.nonNullable.group({
+    plan_suscripcion: this.fb.nonNullable.control<number | ''>('', [Validators.required]),
+    proximo_corte: [''],
+  });
+
+  private cargarSuscripcion(uuid: string): void {
+    this.cargandoSuscripcion.set(true);
+    this.plataformaService.obtenerSuscripcion(uuid).subscribe({
+      next: (suscripcion) => {
+        this.suscripcion.set(suscripcion);
+        this.cargandoSuscripcion.set(false);
+      },
+      error: () => {
+        this.suscripcion.set(null);
+        this.cargandoSuscripcion.set(false);
+      },
+    });
+    // Solo los activos: un plan dado de baja no debe poder contratarse de nuevo.
+    this.plataformaService.listarPlanes().subscribe({
+      next: (planes) => this.planesDisponibles.set(planes),
+      error: () => this.planesDisponibles.set([]),
+    });
+  }
+
+  protected abrirContratar(): void {
+    this.errorSuscripcion.set(null);
+    this.formContratar.reset({ plan_suscripcion: '', proximo_corte: '' });
+    this.panelContratar.set(true);
+  }
+
+  protected cerrarContratar(): void {
+    this.panelContratar.set(false);
+    this.errorSuscripcion.set(null);
+  }
+
+  protected contratar(): void {
+    const g = this.gimnasio();
+    const plan = this.formContratar.controls.plan_suscripcion.value;
+    if (g === null || plan === '' || this.ocupadoSuscripcion()) {
+      this.formContratar.markAllAsTouched();
+      return;
+    }
+
+    this.ocupadoSuscripcion.set(true);
+    this.errorSuscripcion.set(null);
+
+    const corte = this.formContratar.controls.proximo_corte.value.trim();
+    this.plataformaService
+      .contratarPlan(g.uuid_publico, {
+        plan_suscripcion: plan,
+        ...(corte ? { proximo_corte: corte } : {}),
+      })
+      .subscribe({
+        next: (suscripcion) => {
+          this.ocupadoSuscripcion.set(false);
+          this.suscripcion.set(suscripcion);
+          this.panelContratar.set(false);
+        },
+        error: (error: unknown) => {
+          this.ocupadoSuscripcion.set(false);
+          this.errorSuscripcion.set(this.mensajeSuscripcion(error, 'No se pudo contratar el plan.'));
+        },
+      });
+  }
+
+  protected cancelarSuscripcion(): void {
+    const g = this.gimnasio();
+    if (g === null || this.ocupadoSuscripcion()) {
+      return;
+    }
+    if (!confirm('¿Terminar el contrato de este gimnasio? Dejará de facturarse. Las facturas pendientes siguen pendientes, y el gimnasio sigue funcionando.')) {
+      return;
+    }
+
+    this.ocupadoSuscripcion.set(true);
+    this.plataformaService.cancelarSuscripcion(g.uuid_publico).subscribe({
+      next: (suscripcion) => {
+        this.ocupadoSuscripcion.set(false);
+        this.suscripcion.set(suscripcion);
+      },
+      error: (error: unknown) => {
+        this.ocupadoSuscripcion.set(false);
+        this.errorSuscripcion.set(this.mensajeSuscripcion(error, 'No se pudo cancelar.'));
+      },
+    });
+  }
+
+  protected emitirFactura(): void {
+    const g = this.gimnasio();
+    if (g === null || this.ocupadoSuscripcion()) {
+      return;
+    }
+
+    this.ocupadoSuscripcion.set(true);
+    this.errorSuscripcion.set(null);
+    this.plataformaService.emitirFactura(g.uuid_publico).subscribe({
+      next: () => {
+        this.ocupadoSuscripcion.set(false);
+        this.cargarSuscripcion(g.uuid_publico);
+      },
+      error: (error: unknown) => {
+        this.ocupadoSuscripcion.set(false);
+        this.errorSuscripcion.set(this.mensajeSuscripcion(error, 'No se pudo emitir la factura.'));
+      },
+    });
+  }
+
+  protected pagarFactura(factura: FacturaSuscripcion): void {
+    const g = this.gimnasio();
+    if (g === null || this.ocupadoSuscripcion()) {
+      return;
+    }
+    this.ocupadoSuscripcion.set(true);
+    this.errorSuscripcion.set(null);
+    this.plataformaService.pagarFactura(g.uuid_publico, factura.id).subscribe({
+      next: () => {
+        this.ocupadoSuscripcion.set(false);
+        this.cargarSuscripcion(g.uuid_publico);
+      },
+      error: (error: unknown) => {
+        this.ocupadoSuscripcion.set(false);
+        this.errorSuscripcion.set(this.mensajeSuscripcion(error, 'No se pudo registrar el cobro.'));
+      },
+    });
+  }
+
+  protected anularFactura(factura: FacturaSuscripcion): void {
+    const g = this.gimnasio();
+    if (g === null || this.ocupadoSuscripcion()) {
+      return;
+    }
+    if (!confirm(`¿Anular la factura del periodo que empieza el ${this.fecha(factura.periodo_inicio)}? No se borra: queda registrada como anulada.`)) {
+      return;
+    }
+    this.ocupadoSuscripcion.set(true);
+    this.errorSuscripcion.set(null);
+    this.plataformaService.anularFactura(g.uuid_publico, factura.id).subscribe({
+      next: () => {
+        this.ocupadoSuscripcion.set(false);
+        this.cargarSuscripcion(g.uuid_publico);
+      },
+      error: (error: unknown) => {
+        this.ocupadoSuscripcion.set(false);
+        this.errorSuscripcion.set(this.mensajeSuscripcion(error, 'No se pudo anular la factura.'));
+      },
+    });
+  }
+
+  private mensajeSuscripcion(error: unknown, porDefecto: string): string {
+    if (error instanceof HttpErrorResponse && error.error && typeof error.error === 'object') {
+      const cuerpo = error.error as Record<string, unknown>;
+      for (const valor of Object.values(cuerpo)) {
+        if (typeof valor === 'string') {
+          return valor;
+        }
+        if (Array.isArray(valor) && typeof valor[0] === 'string') {
+          return valor[0];
+        }
+      }
+    }
+    return porDefecto;
+  }
+
+  protected etiquetaSuscripcion(estado: EstadoSuscripcion): string {
+    return ETIQUETAS_ESTADO_SUSCRIPCION[estado];
+  }
+
+  protected etiquetaFactura(estado: EstadoFactura): string {
+    return ETIQUETAS_ESTADO_FACTURA[estado];
+  }
+
+  protected claseFactura(estado: EstadoFactura): string {
+    if (estado === 'pagada') {
+      return 'badge-success';
+    }
+    return estado === 'anulada' ? 'badge-neutral' : 'badge-warning';
+  }
+
+  /** `true` si el corte ya llegó: hay un periodo que se puede facturar. */
+  protected readonly hayPeriodoQueFacturar = computed(() => {
+    const s = this.suscripcion();
+    if (s === null || s.estado === 'cancelada') {
+      return false;
+    }
+    return new Date(`${s.proximo_corte}T00:00:00`) <= new Date();
+  });
 
   // --- Usuarios y rescate de contraseña --------------------------------
 

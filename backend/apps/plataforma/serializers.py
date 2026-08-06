@@ -2,9 +2,10 @@
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.contrib.auth.password_validation import validate_password
+from django.utils import timezone
 from rest_framework import serializers
 
-from .models import Suscripcion, Tenant, UsuarioPlataforma
+from .models import FacturaSuscripcion, PlanSuscripcion, Suscripcion, Tenant, UsuarioPlataforma
 from .subdominios import SubdominioInvalido, proponer_subdominio, validar_subdominio
 
 
@@ -131,6 +132,109 @@ def _validar_zona_horaria(valor):
             'por ejemplo "America/Bogota".',
         )
     return valor
+
+
+class PlanSuscripcionSerializer(serializers.ModelSerializer):
+    """Catálogo de planes que el proveedor vende.
+
+    Los límites (``max_*``) y las ``caracteristicas`` se guardan y se
+    enseñan, pero HOY NO BLOQUEAN NADA: ningún endpoint del gimnasio los
+    consulta. Sirven para vender planes escalonados y hacerlos cumplir
+    hablando con el cliente. Convertirlos en límites reales es una decisión
+    aparte, porque hay que resolver antes qué pasa con quien ya está por
+    encima de su plan.
+    """
+
+    class Meta:
+        model = PlanSuscripcion
+        fields = (
+            'id', 'nombre', 'precio_por_sede', 'ciclo',
+            'max_sedes', 'max_usuarios', 'max_clientes_activos', 'max_almacenamiento_mb',
+            'caracteristicas', 'activo', 'creado_en',
+        )
+        read_only_fields = ('id', 'creado_en')
+        extra_kwargs = {
+            # Declarados con `db_default` en el modelo: PostgreSQL pone el
+            # valor. DRF solo mira `default=`, así que sin esto los daría por
+            # obligatorios (el mismo caso ya documentado en `PlanAdminSerializer`).
+            'ciclo': {'required': False},
+            'caracteristicas': {'required': False},
+            'activo': {'required': False},
+        }
+
+    def validate_precio_por_sede(self, valor):
+        if valor < 0:
+            raise serializers.ValidationError('El precio no puede ser negativo.')
+        return valor
+
+    def validate(self, datos):
+        """Los límites son "cuántos como máximo": cero o negativo no significa
+        nada. NULL sí: es "ilimitado", y así lo declara el esquema."""
+        for campo in ('max_sedes', 'max_usuarios', 'max_clientes_activos', 'max_almacenamiento_mb'):
+            valor = datos.get(campo)
+            if valor is not None and valor <= 0:
+                raise serializers.ValidationError({
+                    campo: 'Debe ser mayor que cero. Déjalo vacío para "sin límite".',
+                })
+        return datos
+
+
+class FacturaSuscripcionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FacturaSuscripcion
+        fields = (
+            'id', 'periodo_inicio', 'periodo_fin', 'sedes_facturadas', 'monto',
+            'estado', 'fecha_emision', 'fecha_pago', 'creado_en',
+        )
+        read_only_fields = fields
+
+
+class SuscripcionDetalleSerializer(serializers.ModelSerializer):
+    """La suscripción de un gimnasio, con su plan y sus facturas."""
+
+    plan_nombre = serializers.CharField(source='plan_suscripcion.nombre', read_only=True)
+    plan_precio_por_sede = serializers.DecimalField(
+        source='plan_suscripcion.precio_por_sede', max_digits=12, decimal_places=2, read_only=True,
+    )
+    plan_ciclo = serializers.CharField(source='plan_suscripcion.ciclo', read_only=True)
+    facturas = FacturaSuscripcionSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Suscripcion
+        fields = (
+            'id', 'plan_suscripcion', 'plan_nombre', 'plan_precio_por_sede', 'plan_ciclo',
+            'fecha_inicio', 'fecha_fin', 'proximo_corte', 'dias_gracia', 'estado',
+            'facturas',
+        )
+        read_only_fields = fields
+
+
+class AsignarSuscripcionSerializer(serializers.Serializer):
+    """Contrata un plan para un gimnasio, o le cambia el que tenía.
+
+    No admite ``estado``: una suscripción nace vigente y su estado lo mueven
+    después los cobros (``facturacion.marcar_mora``) o una cancelación
+    explícita.
+    """
+
+    plan_suscripcion = serializers.PrimaryKeyRelatedField(
+        queryset=PlanSuscripcion.objects.filter(activo=True),
+    )
+    fecha_inicio = serializers.DateField(required=False)
+    #: Primer cobro. Si no se indica, se cobra desde el mismo día de alta.
+    proximo_corte = serializers.DateField(required=False)
+    dias_gracia = serializers.IntegerField(required=False, min_value=0, max_value=90)
+
+    def validate(self, datos):
+        inicio = datos.get('fecha_inicio') or timezone.localdate()
+        corte = datos.get('proximo_corte') or inicio
+        if corte < inicio:
+            raise serializers.ValidationError({
+                'proximo_corte': 'El primer cobro no puede ser anterior al inicio del contrato.',
+            })
+        datos['fecha_inicio'] = inicio
+        datos['proximo_corte'] = corte
+        return datos
 
 
 class CambiarPasswordPlataformaSerializer(serializers.Serializer):

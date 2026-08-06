@@ -5,8 +5,14 @@ import { Observable, map, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   EstadoTenant,
+  Cobros,
+  FacturaSuscripcion,
   PasswordRestablecida,
+  PlanSuscripcion,
+  PlanSuscripcionFormulario,
   RespuestaLoginPlataforma,
+  SuscripcionDetalle,
+  SuscripcionFormulario,
   TenantConfiguracion,
   TenantCreado,
   TenantDetalle,
@@ -161,6 +167,78 @@ export class PlataformaService {
         tap((respuesta) => this.guardarTokens(respuesta.access, respuesta.refresh)),
         map(() => undefined),
       );
+  }
+
+  // --- Planes de suscripción (el catálogo que vendes) ---
+
+  listarPlanes(incluirInactivos = false): Observable<PlanSuscripcion[]> {
+    const params = incluirInactivos
+      ? new HttpParams().set('incluir_inactivos', '1')
+      : undefined;
+    return this.http
+      .get<RespuestaPaginada<PlanSuscripcion>>(`${this.base}/planes-suscripcion/`, { params })
+      .pipe(map((respuesta) => respuesta.results));
+  }
+
+  crearPlan(datos: PlanSuscripcionFormulario): Observable<PlanSuscripcion> {
+    return this.http.post<PlanSuscripcion>(`${this.base}/planes-suscripcion/`, datos);
+  }
+
+  actualizarPlan(
+    id: number,
+    datos: Partial<PlanSuscripcionFormulario>,
+  ): Observable<PlanSuscripcion> {
+    return this.http.patch<PlanSuscripcion>(`${this.base}/planes-suscripcion/${id}/`, datos);
+  }
+
+  /** Baja LÓGICA: `Suscripcion.plan_suscripcion` es PROTECT y el histórico de
+   * facturación tiene que poder explicarse entero. */
+  darDeBajaPlan(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/planes-suscripcion/${id}/`);
+  }
+
+  // --- Suscripción de un gimnasio ---
+
+  /** `null` si el gimnasio no tiene ningún contrato vivo. */
+  obtenerSuscripcion(uuid: string): Observable<SuscripcionDetalle | null> {
+    return this.http.get<SuscripcionDetalle | null>(`${this.base}/tenants/${uuid}/suscripcion/`);
+  }
+
+  /** Contrata un plan o cambia el actual. Cambiarlo cierra la suscripción
+   * anterior y abre una nueva: solo puede haber una vigente. */
+  contratarPlan(uuid: string, datos: SuscripcionFormulario): Observable<SuscripcionDetalle> {
+    return this.http.post<SuscripcionDetalle>(`${this.base}/tenants/${uuid}/suscripcion/`, datos);
+  }
+
+  /** Termina el contrato. NO apaga el gimnasio: eso tiene su propia acción. */
+  cancelarSuscripcion(uuid: string): Observable<SuscripcionDetalle> {
+    return this.http.post<SuscripcionDetalle>(
+      `${this.base}/tenants/${uuid}/cancelar-suscripcion/`, {},
+    );
+  }
+
+  // --- Facturas ---
+
+  emitirFactura(uuid: string): Observable<FacturaSuscripcion> {
+    return this.http.post<FacturaSuscripcion>(`${this.base}/tenants/${uuid}/emitir-factura/`, {});
+  }
+
+  pagarFactura(uuid: string, facturaId: number): Observable<FacturaSuscripcion> {
+    return this.http.post<FacturaSuscripcion>(
+      `${this.base}/tenants/${uuid}/facturas/${facturaId}/pagar/`, {},
+    );
+  }
+
+  anularFactura(uuid: string, facturaId: number): Observable<FacturaSuscripcion> {
+    return this.http.post<FacturaSuscripcion>(
+      `${this.base}/tenants/${uuid}/facturas/${facturaId}/anular/`, {},
+    );
+  }
+
+  /** Quién te debe dinero. Sin rango de fechas a propósito: una deuda no
+   * pertenece a un mes, sigue viva hasta que se cobra. */
+  cobros(): Observable<Cobros> {
+    return this.http.get<Cobros>(`${this.base}/cobros/`);
   }
 
   /** Usuarios de un gimnasio. Solo lo justo para saber a quién se le

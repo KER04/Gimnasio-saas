@@ -9,7 +9,9 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     CambiarPasswordPlataformaView,
+    CobrosView,
     LoginPlataformaView,
+    PlanSuscripcionViewSet,
     RefrescoPlataformaView,
     TenantViewSet,
     YoPlataformaView,
@@ -19,11 +21,13 @@ app_name = 'plataforma'
 
 router = DefaultRouter()
 router.register('tenants', TenantViewSet, basename='tenant')
+router.register('planes-suscripcion', PlanSuscripcionViewSet, basename='plan-suscripcion')
 
 urlpatterns = [
     path('login/', LoginPlataformaView.as_view(), name='login'),
     path('refresh/', RefrescoPlataformaView.as_view(), name='refresh'),
     path('me/', YoPlataformaView.as_view(), name='me'),
     path('cambiar-password/', CambiarPasswordPlataformaView.as_view(), name='cambiar-password'),
+    path('cobros/', CobrosView.as_view(), name='cobros'),
     path('', include(router.urls)),
 ]

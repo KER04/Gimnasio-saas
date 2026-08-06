@@ -34,6 +34,16 @@ export const routes: Routes = [
           import('./features/plataforma/cuenta/cuenta-plataforma').then((m) => m.PlataformaCuenta),
       },
       {
+        path: 'planes',
+        loadComponent: () =>
+          import('./features/plataforma/planes/planes-suscripcion').then((m) => m.PlataformaPlanes),
+      },
+      {
+        path: 'cobros',
+        loadComponent: () =>
+          import('./features/plataforma/cobros/cobros').then((m) => m.PlataformaCobros),
+      },
+      {
         // Antes de ':uuid': si no, 'nuevo' se interpretaría como un uuid.
         path: 'gimnasios/nuevo',
         loadComponent: () =>
