@@ -10,5 +10,5 @@
  */
 export const environment = {
   production: true,
-  apiUrl: '/api',
+  apiUrl: 'https://gimnasio-saas-production.up.railway.app/api',
 };
