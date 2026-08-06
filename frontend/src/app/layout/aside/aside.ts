@@ -14,7 +14,8 @@ interface ItemNav {
     | 'inventario'
     | 'membresias'
     | 'asistencia'
-    | 'reportes';
+    | 'reportes'
+    | 'usuarios';
   ruta: string;
   etiqueta: string;
   /** `null` = visible para cualquier sesión autenticada. */
@@ -38,6 +39,13 @@ const ITEMS_NAV: ItemNav[] = [
   },
   { id: 'asistencia', ruta: '/asistencia', etiqueta: 'Asistencia', permiso: 'clientes.ver', disponible: true },
   { id: 'reportes', ruta: '/reportes', etiqueta: 'Reportes', permiso: 'reportes.ver', disponible: true },
+  {
+    id: 'usuarios',
+    ruta: '/usuarios',
+    etiqueta: 'Usuarios',
+    permiso: 'config.usuarios',
+    disponible: true,
+  },
 ];
 
 /**

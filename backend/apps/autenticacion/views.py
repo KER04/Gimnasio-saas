@@ -203,6 +203,19 @@ class RegisterView(MensajeThrottleEnEspanolMixin, generics.CreateAPIView):
     dar de alta a un compañero es lo que siempre debió ser -- una operación
     del administrador del gimnasio, con ``config.usuarios``.
 
+    ## Relación con ``POST /api/usuarios/``
+
+    Los dos crean un usuario del gimnasio y los dos exigen el mismo permiso.
+    La diferencia está en la contraseña: aquí la ELIGE quien llama, y en
+    ``/api/usuarios/`` la genera el servidor y se enseña una sola vez.
+
+    La pantalla de gestión de usuarios usa ``/api/usuarios/``, que es el
+    camino recomendado. Este endpoint se conserva porque es el único que
+    permite fijar una contraseña concreta (útil para sembrar entornos y para
+    las pruebas de aislamiento), y porque su batería de pruebas cubre
+    propiedades que conviene no perder: que ya no es anónimo, que está
+    limitado por intentos y que no deja crear usuarios en otro tenant.
+
     El alta de GIMNASIOS es otra cosa distinta y vive fuera de aquí: la hace
     el proveedor (``crear_tenant`` / panel de plataforma), no este endpoint.
 

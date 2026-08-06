@@ -125,6 +125,10 @@ export const routes: Routes = [
         path: 'cuenta',
         loadComponent: () => import('./features/cuenta/cuenta').then((m) => m.MiCuenta),
       },
+      {
+        path: 'usuarios',
+        loadComponent: () => import('./features/usuarios/usuarios').then((m) => m.UsuariosGestion),
+      },
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
     ],
   },
