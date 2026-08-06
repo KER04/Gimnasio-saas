@@ -357,6 +357,43 @@ class AislamientoEntreGimnasiosTestCase(BaseUsuariosTestCase):
         self.assertTrue(otro_usuario.activo)
 
 
+class UltimoAccesoTestCase(BaseUsuariosTestCase):
+    """`usuarios.ultimo_acceso` tiene que reflejar la realidad.
+
+    Con `UPDATE_LAST_LOGIN` desactivado (el valor por defecto de SimpleJWT),
+    la columna solo la escribía el login por SESIÓN del admin de Django: la
+    pantalla enseñaba "nunca ha entrado" para gente que trabajaba a diario.
+    Y sobre ese dato se decide a quién se le quita el acceso.
+    """
+
+    def test_entrar_actualiza_el_ultimo_acceso(self):
+        creado = self._crear_empleado().json()
+        antes = Usuario.objects.get(pk=creado['id']).last_login
+        self.assertIsNone(antes)
+
+        self.client.post(
+            '/api/auth/login/',
+            data={'correo': creado['correo'], 'password': creado['password']},
+            content_type='application/json', HTTP_HOST='gestusuarios.testserver',
+        )
+
+        self.assertIsNotNone(
+            Usuario.objects.get(pk=creado['id']).last_login,
+            'Entrar por la API debe registrar el último acceso.',
+        )
+
+    def test_un_intento_fallido_no_cuenta_como_acceso(self):
+        creado = self._crear_empleado().json()
+
+        self.client.post(
+            '/api/auth/login/',
+            data={'correo': creado['correo'], 'password': 'no-es-esta'},
+            content_type='application/json', HTTP_HOST='gestusuarios.testserver',
+        )
+
+        self.assertIsNone(Usuario.objects.get(pk=creado['id']).last_login)
+
+
 class RolesTestCase(BaseUsuariosTestCase):
 
     def test_lista_los_roles_del_gimnasio(self):

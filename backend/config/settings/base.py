@@ -286,6 +286,18 @@ SIMPLE_JWT = {
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
+    # Actualiza `usuarios.ultimo_acceso` en cada login por la API.
+    #
+    # Por defecto es False, y eso hacía que la columna solo la escribiera el
+    # login por SESIÓN (el admin de Django). Resultado: la pantalla de
+    # usuarios enseñaba "último acceso" de hace semanas para gente que
+    # entraba a diario, y "nunca ha entrado" para quien llevaba meses
+    # trabajando. No era un dato desfasado, era un dato ENGAÑOSO -- y sobre
+    # ese dato se decide a quién se le quita el acceso.
+    #
+    # El coste es un UPDATE por login, que es despreciable comparado con
+    # tomar esa decisión a ciegas.
+    'UPDATE_LAST_LOGIN': True,
 }
 
 

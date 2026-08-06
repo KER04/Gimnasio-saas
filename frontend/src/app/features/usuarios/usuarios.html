@@ -1,4 +1,5 @@
 <div class="flex flex-col gap-5">
+  <!-- Banner -->
   <div class="rounded-xl bg-primary px-5 py-5 sm:px-6 flex flex-wrap items-center justify-between gap-4">
     <div>
       <h1 class="text-headline-lg-mobile sm:text-headline-lg text-on-primary">Usuarios</h1>
@@ -32,12 +33,12 @@
         </p>
       </div>
 
-      <dl class="flex flex-col gap-2">
-        <div class="rounded-[10px] bg-surface-container-low px-3 py-2.5">
+      <dl class="flex flex-col gap-2 sm:flex-row">
+        <div class="rounded-[10px] bg-surface-container-low px-3 py-2.5 sm:flex-1">
           <dt class="text-xs text-on-surface-variant">Usuario</dt>
           <dd class="font-mono text-on-surface mt-0.5 break-all">{{ c.correo }}</dd>
         </div>
-        <div class="rounded-[10px] bg-primary-container px-3 py-2.5">
+        <div class="rounded-[10px] bg-primary-container px-3 py-2.5 sm:flex-1">
           <dt class="text-xs text-on-primary-container">Contraseña</dt>
           <dd class="font-mono text-lg text-on-primary-container mt-0.5 tracking-wide break-all">
             {{ c.password }}
@@ -48,7 +49,7 @@
       <div class="flex flex-wrap gap-2">
         <button type="button" class="btn-primary" (click)="copiar(c)">
           <span class="material-symbols-outlined text-[20px]" aria-hidden="true">content_copy</span>
-          {{ copiado() ? 'Copiado' : 'Copiar' }}
+          {{ copiado() ? 'Copiado' : 'Copiar credenciales' }}
         </button>
         <button type="button" class="btn-secondary" (click)="descartarCredencial()">
           Ya la anoté
@@ -60,9 +61,14 @@
   <!-- Formulario -->
   @if (panelAbierto()) {
     <form class="card-base p-4 sm:p-5 flex flex-col gap-4" [formGroup]="formulario" (ngSubmit)="guardar()">
-      <h2 class="text-headline-md text-on-surface">
-        {{ usuarioEditando() ? 'Editar usuario' : 'Nuevo usuario' }}
-      </h2>
+      <div class="flex items-start justify-between gap-2">
+        <h2 class="text-headline-md text-on-surface">
+          {{ usuarioEditando() ? 'Editar usuario' : 'Nuevo usuario' }}
+        </h2>
+        <button type="button" class="btn-icon" aria-label="Cerrar" (click)="cerrarPanel()">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
+      </div>
 
       <div class="grid sm:grid-cols-2 gap-4">
         <div>
@@ -83,10 +89,8 @@
             <p class="mt-1 text-xs text-on-surface-variant">
               El correo no se puede cambiar: es con lo que entra.
             </p>
-          } @else {
-            @if (formulario.controls.correo.invalid && formulario.controls.correo.touched) {
-              <p class="mt-1 text-xs text-danger-text">Escribe un correo válido.</p>
-            }
+          } @else if (formulario.controls.correo.invalid && formulario.controls.correo.touched) {
+            <p class="mt-1 text-xs text-danger-text">Escribe un correo válido.</p>
           }
           @for (e of erroresDe('correo'); track e) {
             <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
@@ -115,25 +119,53 @@
         </div>
       </div>
 
-      @if (sedes().length > 1) {
-        <div class="border-t border-outline-variant pt-4">
-          <p class="text-sm font-medium text-on-surface mb-2">Sedes donde trabaja</p>
+      <!-- Sedes: SIEMPRE visible aunque solo haya una. Antes se escondía
+           cuando había una sola sede, y entonces no había forma de asignarla
+           -- que es justo lo que hace falta para poder vender y cobrar. -->
+      <div class="border-t border-outline-variant pt-4">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <p class="text-sm font-medium text-on-surface">Sedes donde trabaja</p>
+          @if (sedes().length > 1) {
+            <button type="button" class="text-xs text-primary hover:underline"
+                    (click)="alternarTodasLasSedes()">
+              {{ todasLasSedes() ? 'Ninguna' : 'Todas' }}
+            </button>
+          }
+        </div>
+
+        @if (sedes().length === 0) {
+          <p class="text-sm text-on-surface-variant">
+            Todavía no hay sedes que asignar.
+          </p>
+        } @else {
           <div class="flex flex-wrap gap-2">
             @for (s of sedes(); track s.id) {
               <button
                 type="button"
-                class="rounded-full border px-3 py-1.5 text-sm transition-colors"
+                class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors"
                 [class]="tieneSede(s.id)
                   ? 'border-primary bg-primary-container text-on-primary-container'
                   : 'border-outline-variant text-on-surface-variant hover:bg-surface-container-low'"
                 (click)="alternarSede(s.id)"
               >
+                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">
+                  {{ tieneSede(s.id) ? 'check_circle' : 'radio_button_unchecked' }}
+                </span>
                 {{ s.nombre }}
               </button>
             }
           </div>
-        </div>
-      }
+          @if (formulario.controls.sedes.value.length === 0) {
+            <p class="mt-2 text-xs text-warning-text flex items-start gap-1.5">
+              <span class="material-symbols-outlined text-[16px] shrink-0" aria-hidden="true">info</span>
+              <span>
+                Sin sede asignada no podrá vender, cobrar ni registrar asistencia: esas
+                operaciones ocurren siempre en una sede concreta.
+              </span>
+            </p>
+          }
+        }
+      </div>
 
       @if (!usuarioEditando()) {
         <p class="text-xs text-on-surface-variant">
@@ -152,69 +184,185 @@
     </form>
   }
 
-  <div class="flex items-center justify-between gap-3">
-    <label class="inline-flex items-center gap-2 text-sm text-on-surface-variant">
-      <input type="checkbox" class="size-4" [checked]="verInactivos()" (change)="alternarInactivos()" />
-      Ver también los dados de baja
-    </label>
-  </div>
-
-  @if (cargando()) {
-    <p class="text-sm text-on-surface-variant">Cargando…</p>
-  } @else if (usuarios().length === 0) {
-    <div class="card-base p-8 text-center">
-      <p class="text-on-surface">No hay usuarios que mostrar.</p>
+  <!-- Listado -->
+  <div class="card-base overflow-hidden">
+    <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-outline-variant">
+      <p class="text-sm text-on-surface-variant">
+        {{ usuarios().length }}
+        {{ usuarios().length === 1 ? 'usuario' : 'usuarios' }}
+      </p>
+      <label class="inline-flex items-center gap-2 text-sm text-on-surface-variant cursor-pointer">
+        <input type="checkbox" class="size-4" [checked]="verInactivos()" (change)="alternarInactivos()" />
+        Ver también los dados de baja
+      </label>
     </div>
-  } @else {
-    <div class="flex flex-col gap-3">
-      @for (u of usuarios(); track u.id) {
-        <div class="card-base p-4 flex flex-wrap items-start justify-between gap-3"
-             [class.opacity-60]="!u.activo">
-          <div class="min-w-0">
-            <div class="flex flex-wrap items-center gap-2">
-              <p class="text-on-surface font-medium">{{ u.nombre }}</p>
+
+    @if (cargando()) {
+      <p class="px-4 py-8 text-center text-sm text-on-surface-variant">Cargando…</p>
+    } @else if (usuarios().length === 0) {
+      <div class="px-4 py-10 text-center">
+        <span class="material-symbols-outlined text-[40px] text-on-surface-variant" aria-hidden="true">
+          group_off
+        </span>
+        <p class="text-on-surface mt-2">No hay usuarios que mostrar.</p>
+      </div>
+    } @else {
+      <!-- Escritorio -->
+      <div class="hidden md:block overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-surface-container-highest/50 text-left">
+              <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Usuario</th>
+              <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Rol</th>
+              <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Sedes</th>
+              <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Último acceso</th>
+              <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Estado</th>
+              <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-outline-variant">
+            @for (u of usuarios(); track u.id) {
+              <tr [class]="usuarioEditando()?.id === u.id ? 'bg-primary-container/20' : ''">
+                <td class="px-4 py-3">
+                  <div class="flex items-center gap-2.5">
+                    <span class="flex items-center justify-center size-9 shrink-0 rounded-full bg-primary-container text-on-primary-container text-xs font-semibold"
+                          aria-hidden="true">
+                      {{ iniciales(u.nombre) }}
+                    </span>
+                    <div class="min-w-0">
+                      <p class="font-medium text-on-surface flex items-center gap-1.5">
+                        {{ u.nombre }}
+                        @if (esUnoMismo(u)) {
+                          <span class="badge-success">Tú</span>
+                        }
+                      </p>
+                      <p class="text-xs text-on-surface-variant break-all">{{ u.correo }}</p>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-4 py-3">
+                  <span class="badge-neutral capitalize">{{ u.rol_nombre }}</span>
+                </td>
+                <td class="px-4 py-3">
+                  @if (u.sedes.length === 0) {
+                    <span class="inline-flex items-center gap-1 text-xs text-warning-text">
+                      <span class="material-symbols-outlined text-[16px]" aria-hidden="true">warning</span>
+                      Sin sede
+                    </span>
+                  } @else {
+                    <p class="text-on-surface">{{ sedesTexto(u) }}</p>
+                  }
+                </td>
+                <td class="px-4 py-3">
+                  <p [class]="u.last_login ? 'text-on-surface' : 'text-on-surface-variant'">
+                    {{ ultimoAcceso(u.last_login) }}
+                  </p>
+                </td>
+                <td class="px-4 py-3">
+                  <span [class]="u.activo ? 'badge-success' : 'badge-danger'">
+                    {{ u.activo ? 'Activo' : 'Sin acceso' }}
+                  </span>
+                </td>
+                <td class="px-4 py-3">
+                  <div class="flex items-center justify-end gap-1.5">
+                    <button type="button" class="btn-icon" title="Editar"
+                            [attr.aria-label]="'Editar ' + u.nombre"
+                            [disabled]="ocupadoId() === u.id" (click)="abrirEdicion(u)">
+                      <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                    </button>
+                    @if (u.activo) {
+                      <button type="button" class="btn-icon" title="Restablecer contraseña"
+                              [attr.aria-label]="'Restablecer la contraseña de ' + u.nombre"
+                              [disabled]="ocupadoId() === u.id" (click)="restablecer(u)">
+                        <span class="material-symbols-outlined" aria-hidden="true">key</span>
+                      </button>
+                      <!-- Desactivarse a uno mismo lo rechaza el backend: no
+                           se ofrece el botón para no prometer algo que falla. -->
+                      @if (!esUnoMismo(u)) {
+                        <button type="button" class="btn-icon" title="Quitar acceso"
+                                [attr.aria-label]="'Quitar el acceso a ' + u.nombre"
+                                [disabled]="ocupadoId() === u.id" (click)="desactivar(u)">
+                          <span class="material-symbols-outlined" aria-hidden="true">block</span>
+                        </button>
+                      }
+                    } @else {
+                      <button type="button" class="btn-icon text-primary" title="Devolver acceso"
+                              [attr.aria-label]="'Devolver el acceso a ' + u.nombre"
+                              [disabled]="ocupadoId() === u.id" (click)="activar(u)">
+                        <span class="material-symbols-outlined" aria-hidden="true">restart_alt</span>
+                      </button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Móvil -->
+      <div class="md:hidden divide-y divide-outline-variant">
+        @for (u of usuarios(); track u.id) {
+          <div class="p-4 flex flex-col gap-3" [class.opacity-60]="!u.activo">
+            <div class="flex items-start gap-2.5">
+              <span class="flex items-center justify-center size-9 shrink-0 rounded-full bg-primary-container text-on-primary-container text-xs font-semibold"
+                    aria-hidden="true">
+                {{ iniciales(u.nombre) }}
+              </span>
+              <div class="min-w-0 flex-1">
+                <p class="font-medium text-on-surface">{{ u.nombre }}</p>
+                <p class="text-xs text-on-surface-variant break-all">{{ u.correo }}</p>
+              </div>
+              <span [class]="u.activo ? 'badge-success' : 'badge-danger'">
+                {{ u.activo ? 'Activo' : 'Sin acceso' }}
+              </span>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-1.5">
               <span class="badge-neutral capitalize">{{ u.rol_nombre }}</span>
               @if (esUnoMismo(u)) {
                 <span class="badge-success">Tú</span>
               }
-              @if (!u.activo) {
-                <span class="badge-danger">Sin acceso</span>
+              @if (u.sedes.length === 0) {
+                <span class="badge-warning">Sin sede</span>
+              } @else {
+                <span class="badge-neutral">{{ sedesTexto(u) }}</span>
               }
             </div>
-            <p class="text-sm text-on-surface-variant mt-0.5 break-all">{{ u.correo }}</p>
-            <p class="text-xs text-on-surface-variant mt-0.5">
-              {{ sedesTexto(u) }} · Último acceso: {{ ultimoAcceso(u.last_login) }}
+
+            <p class="text-xs text-on-surface-variant">
+              Último acceso: {{ ultimoAcceso(u.last_login) }}
             </p>
-          </div>
 
-          <div class="flex flex-wrap items-center gap-1.5 shrink-0">
-            <button type="button" class="btn-secondary" [disabled]="ocupadoId() === u.id"
-                    (click)="abrirEdicion(u)">
-              Editar
-            </button>
-
-            @if (u.activo) {
-              <button type="button" class="text-sm text-primary hover:underline px-2"
-                      [disabled]="ocupadoId() === u.id" (click)="restablecer(u)">
-                Restablecer contraseña
+            <div class="flex items-center gap-1.5">
+              <button type="button" class="btn-icon" [attr.aria-label]="'Editar ' + u.nombre"
+                      [disabled]="ocupadoId() === u.id" (click)="abrirEdicion(u)">
+                <span class="material-symbols-outlined" aria-hidden="true">edit</span>
               </button>
-              <!-- Desactivarse a uno mismo lo rechaza el backend: no se
-                   ofrece el botón para no prometer algo que va a fallar. -->
-              @if (!esUnoMismo(u)) {
-                <button type="button" class="text-sm text-on-surface-variant hover:text-danger-text px-2"
-                        [disabled]="ocupadoId() === u.id" (click)="desactivar(u)">
-                  Quitar acceso
+              @if (u.activo) {
+                <button type="button" class="btn-icon"
+                        [attr.aria-label]="'Restablecer la contraseña de ' + u.nombre"
+                        [disabled]="ocupadoId() === u.id" (click)="restablecer(u)">
+                  <span class="material-symbols-outlined" aria-hidden="true">key</span>
+                </button>
+                @if (!esUnoMismo(u)) {
+                  <button type="button" class="btn-icon"
+                          [attr.aria-label]="'Quitar el acceso a ' + u.nombre"
+                          [disabled]="ocupadoId() === u.id" (click)="desactivar(u)">
+                    <span class="material-symbols-outlined" aria-hidden="true">block</span>
+                  </button>
+                }
+              } @else {
+                <button type="button" class="btn-icon text-primary"
+                        [attr.aria-label]="'Devolver el acceso a ' + u.nombre"
+                        [disabled]="ocupadoId() === u.id" (click)="activar(u)">
+                  <span class="material-symbols-outlined" aria-hidden="true">restart_alt</span>
                 </button>
               }
-            } @else {
-              <button type="button" class="text-sm text-primary hover:underline px-2"
-                      [disabled]="ocupadoId() === u.id" (click)="activar(u)">
-                Devolver acceso
-              </button>
-            }
+            </div>
           </div>
-        </div>
-      }
-    </div>
-  }
+        }
+      </div>
+    }
+  </div>
 </div>

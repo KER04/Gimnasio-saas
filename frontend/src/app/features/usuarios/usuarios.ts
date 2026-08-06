@@ -140,6 +140,17 @@ export class UsuariosGestion {
     return this.formulario.controls.sedes.value.includes(sedeId);
   }
 
+  protected todasLasSedes(): boolean {
+    const sedes = this.sedes();
+    return sedes.length > 0 && this.formulario.controls.sedes.value.length === sedes.length;
+  }
+
+  protected alternarTodasLasSedes(): void {
+    this.formulario.controls.sedes.setValue(
+      this.todasLasSedes() ? [] : this.sedes().map((s) => s.id),
+    );
+  }
+
   protected guardar(): void {
     if (this.guardando()) {
       return;
@@ -310,13 +321,53 @@ export class UsuariosGestion {
     return usuario.sedes.map((s) => s.nombre).join(', ');
   }
 
+  /**
+   * Cuándo entró por última vez, en lenguaje llano.
+   *
+   * Se dice "hoy" y "ayer" en vez de la fecha porque la pregunta real que
+   * responde esta columna es "¿esta persona sigue trabajando aquí?", y para
+   * eso lo que importa es hace cuánto, no el día exacto. La fecha completa
+   * aparece a partir de la semana, cuando ya sí se quiere saber.
+   */
   protected ultimoAcceso(valor: string | null): string {
     if (!valor) {
       return 'Nunca ha entrado';
     }
     const fecha = new Date(valor);
-    return Number.isNaN(fecha.getTime())
-      ? valor
-      : fecha.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' });
+    if (Number.isNaN(fecha.getTime())) {
+      return valor;
+    }
+
+    const hora = fecha.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+    // Se comparan los DÍAS del calendario, no las horas transcurridas: a las
+    // 00:30 de hoy, algo de las 23:00 de anoche fue "ayer", no "hace 1 hora".
+    const dias = this.diasDeDiferencia(fecha, new Date());
+
+    if (dias === 0) {
+      return `Hoy a las ${hora}`;
+    }
+    if (dias === 1) {
+      return `Ayer a las ${hora}`;
+    }
+    if (dias < 7) {
+      return `Hace ${dias} días`;
+    }
+    return fecha.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  private diasDeDiferencia(desde: Date, hasta: Date): number {
+    const a = new Date(desde.getFullYear(), desde.getMonth(), desde.getDate());
+    const b = new Date(hasta.getFullYear(), hasta.getMonth(), hasta.getDate());
+    return Math.round((b.getTime() - a.getTime()) / 86_400_000);
+  }
+
+  /** Iniciales para el avatar. Dos como mucho: con tres deja de leerse. */
+  protected iniciales(nombre: string): string {
+    return nombre
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((parte) => parte[0]?.toUpperCase() ?? '')
+      .join('');
   }
 }
