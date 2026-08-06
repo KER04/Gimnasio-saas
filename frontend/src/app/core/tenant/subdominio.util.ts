@@ -14,6 +14,21 @@
  * dominio, así que sin esto se interpretaría `127` como subdominio. */
 const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
 
+/**
+ * Dominios de plataformas PaaS que no tienen nada que ver con el gimnasio.
+ *
+ * Mientras no haya dominio propio con comodín, Railway asigna URLs como
+ * `frontend-production-11c4.up.railway.app`. Sin esta excepción,
+ * `frontend-production-11c4` se leería como el código de un gimnasio: el
+ * login daría por deducido el tenant, escondería el campo "código de
+ * gimnasio" y no habría forma de entrar a ninguno.
+ *
+ * Se comparan con un punto delante (`.up.railway.app`) para que el sufijo
+ * tenga que ser un dominio padre de verdad y no una coincidencia de texto al
+ * final del nombre.
+ */
+const SUFIJOS_PLATAFORMA = ['up.railway.app', 'vercel.app', 'netlify.app', 'onrender.com'];
+
 export function subdominioDesdeHostname(hostname: string): string | null {
   if (!hostname) {
     return null;
@@ -24,6 +39,10 @@ export function subdominioDesdeHostname(hostname: string): string | null {
   const limpio = hostname.split(':')[0].trim().toLowerCase();
 
   if (!limpio || limpio === 'localhost' || IPV4.test(limpio)) {
+    return null;
+  }
+
+  if (SUFIJOS_PLATAFORMA.some((sufijo) => limpio.endsWith(`.${sufijo}`))) {
     return null;
   }
 
