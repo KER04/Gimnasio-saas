@@ -7,6 +7,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { SedesService } from '../../core/services/sedes.service';
 import { UsuariosService } from '../../core/services/usuarios.service';
 import { SedeOrganizacion } from '../../core/models/sede.model';
+import { FiltroEstado, FiltroEstadoControl } from '../../shared/filtro-estado/filtro-estado';
 import {
   RolGimnasio,
   UsuarioConPassword,
@@ -25,7 +26,7 @@ type ErroresDeCampo = Record<string, string | string[]>;
  */
 @Component({
   selector: 'app-usuarios',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, FiltroEstadoControl],
   templateUrl: './usuarios.html',
 })
 export class UsuariosGestion {
@@ -39,7 +40,16 @@ export class UsuariosGestion {
   protected readonly sedes = signal<SedeOrganizacion[]>([]);
   protected readonly cargando = signal(true);
   protected readonly error = signal<string | null>(null);
-  protected readonly verInactivos = signal(false);
+  /** Se traen SIEMPRE todos y se filtra en memoria: la plantilla de un
+   * gimnasio es pequeña y cambiar de filtro no necesita otra petición. */
+  protected readonly filtro = signal<FiltroEstado>('activos');
+
+  protected readonly usuariosVisibles = computed(() => {
+    const filtro = this.filtro();
+    return this.usuarios().filter(
+      (u) => filtro === 'todos' || (filtro === 'activos') === u.activo,
+    );
+  });
 
   /** Quién soy: la pantalla no ofrece acciones que el backend va a rechazar
    * por ser sobre uno mismo (desactivarse, cambiarse el rol). */
@@ -71,7 +81,7 @@ export class UsuariosGestion {
   protected cargar(): void {
     this.cargando.set(true);
     forkJoin({
-      usuarios: this.usuariosService.listar(this.verInactivos()),
+      usuarios: this.usuariosService.listar(true),
       roles: this.usuariosService.listarRoles(),
       sedes: this.sedesService.listar(),
     }).subscribe({
@@ -86,11 +96,6 @@ export class UsuariosGestion {
         this.error.set('No se pudieron cargar los usuarios.');
       },
     });
-  }
-
-  protected alternarInactivos(): void {
-    this.verInactivos.update((valor) => !valor);
-    this.cargar();
   }
 
   // --- Alta y edición --------------------------------------------------

@@ -14,6 +14,7 @@ import {
   TipoMovimiento,
 } from '../../../core/models/producto.model';
 import { formatearMonto, normalizarPrecio, precioParaMostrar, precioValido } from '../../../core/utils/precio.util';
+import { FiltroEstado, FiltroEstadoControl } from '../../../shared/filtro-estado/filtro-estado';
 
 /** Errores de campo tal como los devuelve DRF: `{"campo": "texto" | [...]}`. */
 type ErroresDeCampo = Record<string, string | string[]>;
@@ -36,7 +37,7 @@ interface LineaCompra {
  */
 @Component({
   selector: 'app-inventario-productos',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, FiltroEstadoControl],
   templateUrl: './productos.html',
 })
 export class InventarioProductos {
@@ -56,6 +57,16 @@ export class InventarioProductos {
   // --- Catálogo ---
   protected readonly buscar = this.fb.nonNullable.control('');
   protected readonly productos = signal<Producto[]>([]);
+
+  /** Se filtra en memoria: la lista ya viene entera del servidor. */
+  protected readonly filtro = signal<FiltroEstado>('activos');
+
+  protected readonly productosVisibles = computed(() => {
+    const filtro = this.filtro();
+    return this.productos().filter(
+      (x) => filtro === 'todos' || (filtro === 'activos') === x.activo,
+    );
+  });
   /** TODAS las categorías, dadas de baja incluidas. Se cargan enteras porque
    * el panel de categorías es el único sitio desde el que se puede volver a
    * activar una: si solo pidiera las activas, dar de baja sería un viaje sin

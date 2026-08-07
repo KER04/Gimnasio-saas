@@ -188,18 +188,15 @@
   <div class="card-base overflow-hidden">
     <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-outline-variant">
       <p class="text-sm text-on-surface-variant">
-        {{ usuarios().length }}
-        {{ usuarios().length === 1 ? 'usuario' : 'usuarios' }}
+        {{ usuariosVisibles().length }}
+        {{ usuariosVisibles().length === 1 ? 'usuario' : 'usuarios' }}
       </p>
-      <label class="inline-flex items-center gap-2 text-sm text-on-surface-variant cursor-pointer">
-        <input type="checkbox" class="size-4" [checked]="verInactivos()" (change)="alternarInactivos()" />
-        Ver también los dados de baja
-      </label>
+<app-filtro-estado [(valor)]="filtro" etiquetaInactivos="Sin acceso" />
     </div>
 
     @if (cargando()) {
       <p class="px-4 py-8 text-center text-sm text-on-surface-variant">Cargando…</p>
-    } @else if (usuarios().length === 0) {
+    } @else if (usuariosVisibles().length === 0) {
       <div class="px-4 py-10 text-center">
         <span class="material-symbols-outlined text-[40px] text-on-surface-variant" aria-hidden="true">
           group_off
@@ -221,7 +218,7 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-outline-variant">
-            @for (u of usuarios(); track u.id) {
+            @for (u of usuariosVisibles(); track u.id) {
               <tr [class]="usuarioEditando()?.id === u.id ? 'bg-primary-container/20' : ''">
                 <td class="px-4 py-3">
                   <div class="flex items-center gap-2.5">
@@ -302,7 +299,7 @@
 
       <!-- Móvil -->
       <div class="md:hidden divide-y divide-outline-variant">
-        @for (u of usuarios(); track u.id) {
+        @for (u of usuariosVisibles(); track u.id) {
           <div class="p-4 flex flex-col gap-3" [class.opacity-60]="!u.activo">
             <div class="flex items-start gap-2.5">
               <span class="flex items-center justify-center size-9 shrink-0 rounded-full bg-primary-container text-on-primary-container text-xs font-semibold"

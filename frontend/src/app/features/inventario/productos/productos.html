@@ -187,7 +187,7 @@
         <div class="flex flex-col sm:flex-row gap-2">
           <select class="field-input sm:flex-1" [formControl]="productoACompra" aria-label="Producto a añadir">
             <option value="">Elige un producto…</option>
-            @for (p of productos(); track p.id) {
+            @for (p of productosVisibles(); track p.id) {
               <option [value]="p.id">{{ p.nombre }}</option>
             }
           </select>
@@ -421,16 +421,23 @@
     }
 
     <!-- ===== Listado ===== -->
-    <div class="card-base p-4">
+    <div class="card-base p-4 flex flex-col gap-3">
       <div class="relative">
         <span class="material-symbols-outlined pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant" aria-hidden="true">search</span>
         <input type="search" class="field-search" placeholder="Buscar por nombre…" autocomplete="off" [formControl]="buscar" aria-label="Buscar producto" />
+      </div>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <p class="text-sm text-on-surface-variant">
+          {{ productosVisibles().length }}
+          {{ productosVisibles().length === 1 ? 'producto' : 'productos' }}
+        </p>
+        <app-filtro-estado [(valor)]="filtro" etiquetaInactivos="De baja" />
       </div>
     </div>
 
     @if (cargando()) {
       <div class="card-base p-8 text-center text-sm text-on-surface-variant">Cargando inventario…</div>
-    } @else if (productos().length === 0) {
+    } @else if (productosVisibles().length === 0) {
       <div class="card-base p-8 flex flex-col items-center gap-1 text-center">
         <p class="font-medium text-on-surface">No hay productos todavía</p>
         <p class="text-sm text-on-surface-variant">Crea el primero con el botón «Nuevo producto».</p>
@@ -453,7 +460,7 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-outline-variant">
-              @for (p of productos(); track p.id) {
+              @for (p of productosVisibles(); track p.id) {
                 <tr>
                   <td class="px-4 py-3">
                     <p class="font-medium text-on-surface">{{ p.nombre }}</p>
@@ -511,7 +518,7 @@
 
         <!-- Tarjetas por debajo de md (RF-23, sin scroll horizontal). -->
         <div class="md:hidden flex flex-col divide-y divide-outline-variant">
-          @for (p of productos(); track p.id) {
+          @for (p of productosVisibles(); track p.id) {
             <div class="p-4 flex flex-col gap-3">
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0">

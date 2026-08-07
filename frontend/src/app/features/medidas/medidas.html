@@ -60,19 +60,6 @@
           }
         </div>
 
-        <div>
-          <label for="fi-modalidad" class="block text-sm font-medium text-on-surface mb-1">
-            Modalidad
-          </label>
-          <input id="fi-modalidad" type="text" class="field-input" placeholder="Presencial"
-                 formControlName="modalidad" />
-        </div>
-
-        <div>
-          <label for="fi-whatsapp" class="block text-sm font-medium text-on-surface mb-1">WhatsApp</label>
-          <input id="fi-whatsapp" type="text" inputmode="tel" class="field-input"
-                 formControlName="whatsapp" />
-        </div>
       </div>
 
       <div class="flex flex-wrap gap-2">
@@ -94,9 +81,6 @@
             Desde {{ fecha(f.fecha_inicio) }}
             @if (f.estatura_cm) {
               · {{ f.estatura_cm }} cm
-            }
-            @if (f.modalidad) {
-              · {{ f.modalidad }}
             }
           </p>
         </div>
@@ -239,17 +223,14 @@
   <div class="card-base overflow-hidden">
     <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-outline-variant">
       <p class="text-sm text-on-surface-variant">
-        {{ fichas().length }} {{ fichas().length === 1 ? 'proceso' : 'procesos' }}
+        {{ fichasVisibles().length }} {{ fichasVisibles().length === 1 ? 'proceso' : 'procesos' }}
       </p>
-      <label class="inline-flex items-center gap-2 text-sm text-on-surface-variant cursor-pointer">
-        <input type="checkbox" class="size-4" [checked]="verCerradas()" (change)="alternarCerradas()" />
-        Ver también los cerrados
-      </label>
+<app-filtro-estado [(valor)]="filtro" etiquetaActivos="Abiertos" etiquetaInactivos="Cerrados" />
     </div>
 
     @if (cargando()) {
       <p class="px-4 py-8 text-center text-sm text-on-surface-variant">Cargando…</p>
-    } @else if (fichas().length === 0) {
+    } @else if (fichasVisibles().length === 0) {
       <div class="px-4 py-10 text-center">
         <span class="material-symbols-outlined text-[40px] text-on-surface-variant" aria-hidden="true">
           straighten
@@ -261,7 +242,7 @@
       </div>
     } @else {
       <div class="divide-y divide-outline-variant">
-        @for (f of fichas(); track f.id) {
+        @for (f of fichasVisibles(); track f.id) {
           <button
             type="button"
             class="w-full text-left p-4 flex flex-wrap items-center justify-between gap-3 transition-colors hover:bg-surface-container-low"

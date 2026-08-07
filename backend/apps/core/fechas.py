@@ -26,6 +26,18 @@ puede, porque un ``db_default`` no tiene acceso a la fila del tenant.
 Calcular la fecha en Python, en la zona del GIMNASIO, y mandarla explícita en
 el INSERT en vez de dejar que la base la invente. Cada vista que cree una
 fila con fecha "de hoy" debe usar esto.
+
+## Todos los gimnasios están en Colombia
+
+Es una decisión de producto: no hay clientes en otro huso ni se prevén.
+``settings.TIME_ZONE`` y el ``zona_horaria`` por defecto de cada tenant valen
+``America/Bogota``, así que en la práctica ambos caminos dan lo mismo.
+
+Se lee igualmente la columna del tenant en vez de fijar la zona a fuego,
+porque no cuesta nada y mantiene una sola fuente de verdad: las vistas de
+base de datos (``v_membresias_estado``, ``v_corte_diario``) ya usan
+``tenants.zona_horaria``, y que Python usara otra cosa sería justo el tipo de
+divergencia que provocó el fallo original.
 """
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError

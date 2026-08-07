@@ -6,6 +6,7 @@ import { forkJoin } from 'rxjs';
 import { ClientesService } from '../../core/services/clientes.service';
 import { EntrenamientoService } from '../../core/services/entrenamiento.service';
 import { ClienteResumen } from '../../core/models/cliente.model';
+import { FiltroEstado, FiltroEstadoControl } from '../../shared/filtro-estado/filtro-estado';
 import {
   Comparativa,
   ETIQUETAS_MEDIDA,
@@ -29,7 +30,7 @@ type ErroresDeCampo = Record<string, string | string[]>;
  */
 @Component({
   selector: 'app-medidas',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, FiltroEstadoControl],
   templateUrl: './medidas.html',
 })
 export class Medidas {
@@ -44,7 +45,16 @@ export class Medidas {
   protected readonly clientes = signal<ClienteResumen[]>([]);
   protected readonly cargando = signal(true);
   protected readonly error = signal<string | null>(null);
-  protected readonly verCerradas = signal(false);
+  /** Se traen SIEMPRE todas y se filtra en memoria: la lista es pequeña y
+   * cambiar de filtro no necesita otro viaje al servidor. */
+  protected readonly filtro = signal<FiltroEstado>('activos');
+
+  protected readonly fichasVisibles = computed(() => {
+    const filtro = this.filtro();
+    return this.fichas().filter(
+      (f) => filtro === 'todos' || (filtro === 'activos') === f.activa,
+    );
+  });
 
   protected readonly fichaAbierta = signal<FichaMedidas | null>(null);
   protected readonly comparativa = signal<Comparativa | null>(null);
@@ -58,8 +68,6 @@ export class Medidas {
   protected readonly formFicha = this.fb.nonNullable.group({
     cliente: this.fb.nonNullable.control<number | ''>('', [Validators.required]),
     estatura_cm: [''],
-    modalidad: [''],
-    whatsapp: [''],
   });
 
   /** Un control: las 13 medidas más la edad. Todas opcionales — en la
@@ -100,7 +108,7 @@ export class Medidas {
   protected cargar(): void {
     this.cargando.set(true);
     forkJoin({
-      fichas: this.servicio.listarFichas(undefined, this.verCerradas()),
+      fichas: this.servicio.listarFichas(undefined, true),
       clientes: this.clientesService.listar(),
     }).subscribe({
       next: ({ fichas, clientes }) => {
@@ -113,11 +121,6 @@ export class Medidas {
         this.error.set('No se pudieron cargar las fichas.');
       },
     });
-  }
-
-  protected alternarCerradas(): void {
-    this.verCerradas.update((v) => !v);
-    this.cargar();
   }
 
   // --- Ficha -----------------------------------------------------------
@@ -145,8 +148,6 @@ export class Medidas {
       .abrirFicha({
         cliente: v.cliente as number,
         estatura_cm: v.estatura_cm.trim() || null,
-        modalidad: v.modalidad.trim() || null,
-        whatsapp: v.whatsapp.trim() || null,
       })
       .subscribe({
         next: (ficha) => {
@@ -217,12 +218,22 @@ export class Medidas {
     this.guardando.set(true);
     this.erroresCampo.set({});
 
-    // Solo se mandan las medidas que se tomaron: `''` significa "no se midió",
-    // que no es lo mismo que cero.
-    const valores = this.formControl.getRawValue() as Record<string, string>;
+    // Solo se mandan las medidas que se tomaron: vacío significa "no se
+    // midió", que no es lo mismo que cero.
+    //
+    // Se normaliza con `String(...)` y NO se llama a `.trim()` directamente
+    // sobre el valor: un `<input type="number">` hace que Angular entregue un
+    // NÚMERO, no texto. Llamar a `.trim()` sobre él lanzaba una excepción
+    // antes de enviar nada, y como ocurría después de poner `guardando` en
+    // true, el botón se quedaba en "Guardando…" para siempre sin que llegara
+    // ninguna petición al servidor.
+    const valores = this.formControl.getRawValue() as Record<string, unknown>;
     const cuerpo: Record<string, unknown> = {};
     for (const [campo, valor] of Object.entries(valores)) {
-      const limpio = valor.trim();
+      if (valor === null || valor === undefined) {
+        continue;
+      }
+      const limpio = String(valor).trim();
       if (limpio !== '') {
         cuerpo[campo] = limpio;
       }

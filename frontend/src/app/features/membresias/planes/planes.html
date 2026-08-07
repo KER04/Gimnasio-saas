@@ -24,11 +24,18 @@
 
   <div [class]="panelAbierto() ? 'grid gap-5 lg:grid-cols-[1fr_360px]' : 'grid gap-5'">
     <div class="flex flex-col gap-5 min-w-0">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <p class="text-sm text-on-surface-variant">
+          {{ planesVisibles().length }} {{ planesVisibles().length === 1 ? 'plan' : 'planes' }}
+        </p>
+        <app-filtro-estado [(valor)]="filtro" etiquetaInactivos="De baja" />
+      </div>
+
       @if (cargando()) {
         <div class="card-base p-8 flex items-center justify-center text-on-surface-variant text-sm">
           Cargando planes…
         </div>
-      } @else if (planes().length === 0) {
+      } @else if (planesVisibles().length === 0) {
         <div class="card-base p-8 flex flex-col items-center justify-center text-center gap-1">
           <p class="font-medium text-on-surface">Aún no hay planes registrados</p>
           <p class="text-sm text-on-surface-variant">Crea el primero con el botón "Nueva Membresía".</p>
@@ -49,7 +56,7 @@
                 </tr>
               </thead>
               <tbody class="divide-y divide-outline-variant">
-                @for (plan of planes(); track plan.id) {
+                @for (plan of planesVisibles(); track plan.id) {
                   <tr [class]="planEditando()?.id === plan.id ? 'bg-primary-container/20' : ''">
                     <td class="px-4 py-3">
                       <div class="flex items-center gap-2.5">
@@ -129,7 +136,7 @@
 
           <!-- Tarjetas: por debajo de md, incluida la vista de 360px (RF-23, sin scroll horizontal). -->
           <div class="md:hidden flex flex-col divide-y divide-outline-variant">
-            @for (plan of planes(); track plan.id) {
+            @for (plan of planesVisibles(); track plan.id) {
               <div class="p-4 flex flex-col gap-3" [class]="planEditando()?.id === plan.id ? 'bg-primary-container/20' : ''">
                 <div class="flex items-start justify-between gap-2">
                   <div class="flex min-w-0 items-center gap-2.5">

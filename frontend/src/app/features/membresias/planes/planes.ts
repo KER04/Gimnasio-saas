@@ -9,6 +9,7 @@ import { SedesService } from '../../../core/services/sedes.service';
 import { Plan, PlanFormulario, TipoPlan } from '../../../core/models/plan.model';
 import { SedeOrganizacion } from '../../../core/models/sede.model';
 import { formatearMonto, normalizarPrecio, precioValido } from '../../../core/utils/precio.util';
+import { FiltroEstado, FiltroEstadoControl } from '../../../shared/filtro-estado/filtro-estado';
 
 /** Errores de campo tal como los devuelve DRF: `{"campo": "texto" | ["texto", ...]}`. */
 type ErroresDeCampo = Record<string, string | string[]>;
@@ -30,7 +31,7 @@ const ETIQUETAS_TIPO_PLAN: Record<TipoPlan, string> = {
  */
 @Component({
   selector: 'app-planes-listado',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, FiltroEstadoControl],
   templateUrl: './planes.html',
 })
 export class PlanesListado {
@@ -45,6 +46,16 @@ export class PlanesListado {
   protected readonly etiquetasTipo = ETIQUETAS_TIPO_PLAN;
 
   protected readonly planes = signal<Plan[]>([]);
+
+  /** Se filtra en memoria: la lista ya viene entera del servidor. */
+  protected readonly filtro = signal<FiltroEstado>('activos');
+
+  protected readonly planesVisibles = computed(() => {
+    const filtro = this.filtro();
+    return this.planes().filter(
+      (x) => filtro === 'todos' || (filtro === 'activos') === x.activo,
+    );
+  });
   protected readonly sedes = signal<SedeOrganizacion[]>([]);
   protected readonly cargando = signal(true);
   protected readonly error = signal<string | null>(null);

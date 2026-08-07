@@ -1,11 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import {
   SedeAdmin,
   SedesAdminService,
 } from '../../core/services/sedes-admin.service';
+import { FiltroEstado, FiltroEstadoControl } from '../../shared/filtro-estado/filtro-estado';
 
 type ErroresDeCampo = Record<string, string | string[]>;
 
@@ -18,7 +19,7 @@ type ErroresDeCampo = Record<string, string | string[]>;
  */
 @Component({
   selector: 'app-sedes',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, FiltroEstadoControl],
   templateUrl: './sedes.html',
 })
 export class SedesGestion {
@@ -26,6 +27,16 @@ export class SedesGestion {
   private readonly fb = inject(FormBuilder);
 
   protected readonly sedes = signal<SedeAdmin[]>([]);
+
+  /** El listado de gestión trae siempre todas; el filtro decide qué se ve. */
+  protected readonly filtro = signal<FiltroEstado>('activos');
+
+  protected readonly sedesVisibles = computed(() => {
+    const filtro = this.filtro();
+    return this.sedes().filter(
+      (s) => filtro === 'todos' || (filtro === 'activos') === s.activa,
+    );
+  });
   protected readonly cargando = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly aviso = signal<string | null>(null);

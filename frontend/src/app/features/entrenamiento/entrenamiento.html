@@ -13,11 +13,7 @@
         <span class="material-symbols-outlined" aria-hidden="true">add</span>
         Nueva rutina
       </button>
-      <button
-        type="button"
-        class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border-2 border-white/40 px-5 text-[0.9375rem] font-semibold text-on-primary transition-colors hover:bg-white/10"
-        (click)="abrirAltaEjercicio()"
-      >
+      <button type="button" class="btn-inverted" (click)="abrirAltaEjercicio()">
         <span class="material-symbols-outlined" aria-hidden="true">fitness_center</span>
         Nuevo ejercicio
       </button>
@@ -255,7 +251,10 @@
               (change)="agregarEjercicio(iDia, +$any($event.target).value); $any($event.target).value = ''"
             >
               <option value="">Añadir ejercicio…</option>
-              @for (bloque of porGrupo(); track bloque.grupo.id) {
+              <!-- Solo activos, y sin depender del filtro de la pantalla: una
+                   rutina nueva no puede llevar un ejercicio retirado por mucho
+                   que se estén mirando los inactivos. -->
+              @for (bloque of porGrupoParaRutina(); track bloque.grupo.id) {
                 <optgroup [label]="bloque.grupo.nombre">
                   @for (e of bloque.ejercicios; track e.id) {
                     @if (e.activo) {
@@ -303,158 +302,245 @@
       </button>
     </div>
 
-    <div class="px-4 py-3 border-b border-outline-variant">
-      <label class="inline-flex items-center gap-2 text-sm text-on-surface-variant cursor-pointer">
-        <input type="checkbox" class="size-4" [checked]="verInactivos()" (change)="alternarInactivos()" />
-        {{ pestana() === 'rutinas' ? 'Ver también las archivadas' : 'Ver también los dados de baja' }}
-      </label>
+    <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-outline-variant">
+      <p class="text-sm text-on-surface-variant">
+        @if (pestana() === 'rutinas') {
+          {{ rutinasVisibles().length }}
+          {{ rutinasVisibles().length === 1 ? 'rutina' : 'rutinas' }}
+        } @else {
+          {{ ejerciciosVisibles().length }}
+          {{ ejerciciosVisibles().length === 1 ? 'ejercicio' : 'ejercicios' }}
+        }
+      </p>
+      <app-filtro-estado
+        [(valor)]="filtro"
+        [etiquetaInactivos]="pestana() === 'rutinas' ? 'Archivadas' : 'De baja'"
+      />
     </div>
 
     @if (cargando()) {
       <p class="px-4 py-8 text-center text-sm text-on-surface-variant">Cargando…</p>
     } @else if (pestana() === 'rutinas') {
-      @if (rutinas().length === 0) {
+
+      @if (rutinasVisibles().length === 0) {
         <div class="px-4 py-10 text-center">
           <span class="material-symbols-outlined text-[40px] text-on-surface-variant" aria-hidden="true">
             exercise
           </span>
-          <p class="text-on-surface mt-2">Todavía no hay rutinas.</p>
-          <p class="text-sm text-on-surface-variant mt-1 mb-3">
-            Una rutina se arma con ejercicios del catálogo, así que ese es el primer paso.
+          <p class="text-on-surface mt-2">
+            {{ filtro() === 'activos' ? 'Todavía no hay rutinas.' : 'No hay rutinas que mostrar con este filtro.' }}
           </p>
-          <div class="flex flex-wrap justify-center gap-2">
-            @if (ejerciciosActivos().length === 0) {
-              <button type="button" class="btn-primary" (click)="abrirAltaEjercicio()">
-                <span class="material-symbols-outlined text-[20px]" aria-hidden="true">add</span>
-                Crear el primer ejercicio
-              </button>
-            } @else {
-              <button type="button" class="btn-primary" (click)="abrirAltaRutina()">
-                <span class="material-symbols-outlined text-[20px]" aria-hidden="true">add</span>
-                Armar una rutina
-              </button>
-              <button type="button" class="btn-secondary" (click)="abrirAltaEjercicio()">
-                Añadir más ejercicios
-              </button>
-            }
-          </div>
-        </div>
-      } @else {
-        <div class="divide-y divide-outline-variant">
-          @for (r of rutinas(); track r.id) {
-            <div class="p-4 flex flex-col gap-3" [class.opacity-60]="!r.activa">
-              <div class="flex flex-wrap items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <p class="text-on-surface font-medium">{{ r.nombre }}</p>
-                    @if (!r.activa) {
-                      <span class="badge-neutral">Archivada</span>
-                    }
-                  </div>
-                  <p class="text-sm text-on-surface-variant">{{ r.cliente_nombre }}</p>
-                  <p class="text-xs text-on-surface-variant mt-0.5">
-                    {{ r.dias.length }} {{ r.dias.length === 1 ? 'día' : 'días' }} ·
-                    {{ totalEjercicios(r) }} ejercicios · desde {{ fecha(r.fecha_inicio) }} ·
-                    {{ r.entrenador_nombre }}
-                  </p>
-                </div>
-
-                <div class="flex items-center gap-1.5 shrink-0">
-                  <button type="button" class="btn-icon" title="Ver detalle"
-                          [attr.aria-label]="'Ver el detalle de ' + r.nombre"
-                          (click)="alternarDetalle(r)">
-                    <span class="material-symbols-outlined" aria-hidden="true">
-                      {{ rutinaAbierta() === r.id ? 'expand_less' : 'expand_more' }}
-                    </span>
-                  </button>
-                  <button type="button" class="btn-icon" title="Editar"
-                          [attr.aria-label]="'Editar ' + r.nombre"
-                          [disabled]="ocupadoId() === r.id" (click)="abrirEdicionRutina(r)">
-                    <span class="material-symbols-outlined" aria-hidden="true">edit</span>
-                  </button>
-                  @if (r.activa) {
-                    <button type="button" class="btn-icon" title="Archivar"
-                            [attr.aria-label]="'Archivar ' + r.nombre"
-                            [disabled]="ocupadoId() === r.id" (click)="archivar(r)">
-                      <span class="material-symbols-outlined" aria-hidden="true">archive</span>
-                    </button>
-                  }
-                </div>
-              </div>
-
-              @if (r.objetivo) {
-                <p class="text-sm text-on-surface-variant italic">{{ r.objetivo }}</p>
-              }
-
-              @if (rutinaAbierta() === r.id) {
-                <div class="flex flex-col gap-3 border-t border-outline-variant pt-3">
-                  @for (dia of r.dias; track dia.id) {
-                    <div>
-                      <p class="text-sm font-medium text-on-surface mb-1">
-                        Día {{ dia.numero }} · {{ dia.nombre }}
-                      </p>
-                      @if (dia.ejercicios.length === 0) {
-                        <p class="text-xs text-on-surface-variant">Sin ejercicios.</p>
-                      } @else {
-                        <ul class="flex flex-col gap-1">
-                          @for (ej of dia.ejercicios; track ej.id) {
-                            <li class="text-sm text-on-surface-variant flex flex-wrap gap-x-2">
-                              <span class="text-on-surface">{{ ej.orden }}. {{ ej.ejercicio_nombre }}</span>
-                              <span>{{ ej.series }}×{{ ej.repeticiones }}</span>
-                              @if (ej.peso_kg) {
-                                <span>· {{ ej.peso_kg }} kg</span>
-                              }
-                              @if (ej.descanso_segundos !== null) {
-                                <span>· descanso {{ descanso(ej.descanso_segundos) }}</span>
-                              }
-                            </li>
-                          }
-                        </ul>
-                      }
-                    </div>
-                  }
-                </div>
+          @if (filtro() === 'activos') {
+            <p class="text-sm text-on-surface-variant mt-1 mb-3">
+              Una rutina se arma con ejercicios del catálogo, así que ese es el primer paso.
+            </p>
+            <div class="flex flex-wrap justify-center gap-2">
+              @if (ejerciciosActivos().length === 0) {
+                <button type="button" class="btn-primary" (click)="abrirAltaEjercicio()">
+                  <span class="material-symbols-outlined text-[20px]" aria-hidden="true">add</span>
+                  Crear el primer ejercicio
+                </button>
+              } @else {
+                <button type="button" class="btn-primary" (click)="abrirAltaRutina()">
+                  <span class="material-symbols-outlined text-[20px]" aria-hidden="true">add</span>
+                  Armar una rutina
+                </button>
               }
             </div>
           }
         </div>
+      } @else {
+        <!-- Escritorio -->
+        <div class="hidden md:block overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-surface-container-highest/50 text-left">
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Rutina</th>
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Cliente</th>
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Contenido</th>
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Desde</th>
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant">Estado</th>
+                <th class="px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant">
+              @for (r of rutinasVisibles(); track r.id) {
+                <tr [class]="rutinaEditando()?.id === r.id ? 'bg-primary-container/20' : ''">
+                  <td class="px-4 py-3">
+                    <div class="flex items-center gap-2.5">
+                      <span class="material-symbols-outlined shrink-0 text-primary" aria-hidden="true">
+                        exercise
+                      </span>
+                      <div class="min-w-0">
+                        <p class="font-medium text-on-surface">{{ r.nombre }}</p>
+                        @if (r.objetivo) {
+                          <p class="text-xs text-on-surface-variant truncate max-w-[220px]">
+                            {{ r.objetivo }}
+                          </p>
+                        }
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-4 py-3 text-on-surface">{{ r.cliente_nombre }}</td>
+                  <td class="px-4 py-3">
+                    <p class="text-on-surface">
+                      {{ r.dias.length }} {{ r.dias.length === 1 ? 'día' : 'días' }}
+                    </p>
+                    <p class="text-xs text-on-surface-variant">
+                      {{ totalEjercicios(r) }} ejercicios
+                    </p>
+                  </td>
+                  <td class="px-4 py-3">
+                    <p class="text-on-surface whitespace-nowrap">{{ fecha(r.fecha_inicio) }}</p>
+                    <p class="text-xs text-on-surface-variant">{{ r.entrenador_nombre }}</p>
+                  </td>
+                  <td class="px-4 py-3">
+                    <span [class]="r.activa ? 'badge-success' : 'badge-neutral'">
+                      {{ r.activa ? 'Activa' : 'Archivada' }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3">
+                    <div class="flex items-center justify-end gap-1.5">
+                      <button type="button" class="btn-icon" title="Ver el detalle"
+                              [attr.aria-label]="'Ver el detalle de ' + r.nombre"
+                              (click)="alternarDetalle(r)">
+                        <span class="material-symbols-outlined" aria-hidden="true">
+                          {{ rutinaAbierta() === r.id ? 'expand_less' : 'expand_more' }}
+                        </span>
+                      </button>
+                      <button type="button" class="btn-icon" title="Editar"
+                              [attr.aria-label]="'Editar ' + r.nombre"
+                              [disabled]="ocupadoId() === r.id" (click)="abrirEdicionRutina(r)">
+                        <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                      </button>
+                      @if (r.activa) {
+                        <button type="button" class="btn-icon" title="Archivar"
+                                [attr.aria-label]="'Archivar ' + r.nombre"
+                                [disabled]="ocupadoId() === r.id" (click)="archivar(r)">
+                          <span class="material-symbols-outlined" aria-hidden="true">archive</span>
+                        </button>
+                      }
+                    </div>
+                  </td>
+                </tr>
+
+                @if (rutinaAbierta() === r.id) {
+                  <tr class="bg-surface-container-low">
+                    <td colspan="6" class="px-4 py-3">
+                      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        @for (dia of r.dias; track dia.id) {
+                          <div class="rounded-[10px] bg-surface px-3 py-2.5">
+                            <p class="text-sm font-medium text-on-surface mb-1">
+                              Día {{ dia.numero }} · {{ dia.nombre }}
+                            </p>
+                            @if (dia.ejercicios.length === 0) {
+                              <p class="text-xs text-on-surface-variant">Sin ejercicios.</p>
+                            } @else {
+                              <ul class="flex flex-col gap-0.5">
+                                @for (ej of dia.ejercicios; track ej.id) {
+                                  <li class="text-xs text-on-surface-variant">
+                                    <span class="text-on-surface">{{ ej.ejercicio_nombre }}</span>
+                                    · {{ ej.series }}×{{ ej.repeticiones }}
+                                    @if (ej.peso_kg) {
+                                      · {{ ej.peso_kg }} kg
+                                    }
+                                  </li>
+                                }
+                              </ul>
+                            }
+                          </div>
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Móvil -->
+        <div class="md:hidden divide-y divide-outline-variant">
+          @for (r of rutinasVisibles(); track r.id) {
+            <div class="p-4 flex flex-col gap-2" [class.opacity-60]="!r.activa">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="font-medium text-on-surface">{{ r.nombre }}</p>
+                  <p class="text-sm text-on-surface-variant">{{ r.cliente_nombre }}</p>
+                </div>
+                <span [class]="r.activa ? 'badge-success' : 'badge-neutral'">
+                  {{ r.activa ? 'Activa' : 'Archivada' }}
+                </span>
+              </div>
+              <p class="text-xs text-on-surface-variant">
+                {{ r.dias.length }} {{ r.dias.length === 1 ? 'día' : 'días' }} ·
+                {{ totalEjercicios(r) }} ejercicios · desde {{ fecha(r.fecha_inicio) }}
+              </p>
+              <div class="flex items-center gap-1.5">
+                <button type="button" class="btn-icon" [attr.aria-label]="'Editar ' + r.nombre"
+                        [disabled]="ocupadoId() === r.id" (click)="abrirEdicionRutina(r)">
+                  <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                </button>
+                @if (r.activa) {
+                  <button type="button" class="btn-icon" [attr.aria-label]="'Archivar ' + r.nombre"
+                          [disabled]="ocupadoId() === r.id" (click)="archivar(r)">
+                    <span class="material-symbols-outlined" aria-hidden="true">archive</span>
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        </div>
       }
+
     } @else {
-      @if (ejercicios().length === 0) {
+
+      @if (ejerciciosVisibles().length === 0) {
         <div class="px-4 py-10 text-center">
           <span class="material-symbols-outlined text-[40px] text-on-surface-variant" aria-hidden="true">
             fitness_center
           </span>
-          <p class="text-on-surface mt-2">El catálogo está vacío.</p>
-          <p class="text-sm text-on-surface-variant mt-1 mb-3">
-            Cada gimnasio arma el suyo. Empieza por los básicos de cada grupo muscular.
+          <p class="text-on-surface mt-2">
+            {{ filtro() === 'activos' ? 'El catálogo está vacío.' : 'No hay ejercicios que mostrar con este filtro.' }}
           </p>
-          <button type="button" class="btn-primary" (click)="abrirAltaEjercicio()">
-            <span class="material-symbols-outlined text-[20px]" aria-hidden="true">add</span>
-            Crear el primer ejercicio
-          </button>
+          @if (filtro() === 'activos') {
+            <p class="text-sm text-on-surface-variant mt-1 mb-3">
+              Cada gimnasio arma el suyo. Empieza por los básicos de cada grupo muscular.
+            </p>
+            <button type="button" class="btn-primary" (click)="abrirAltaEjercicio()">
+              <span class="material-symbols-outlined text-[20px]" aria-hidden="true">add</span>
+              Crear el primer ejercicio
+            </button>
+          }
         </div>
       } @else {
-        <div class="p-4 flex flex-col gap-5">
+        <div class="p-4 flex flex-col gap-6">
           @for (bloque of porGrupo(); track bloque.grupo.id) {
             <div>
-              <h3 class="text-sm font-semibold text-on-surface mb-2">{{ bloque.grupo.nombre }}</h3>
-              <div class="flex flex-col gap-2">
+              <div class="flex items-center gap-2 mb-3">
+                <h3 class="text-sm font-semibold text-on-surface">{{ bloque.grupo.nombre }}</h3>
+                <span class="text-xs text-on-surface-variant">
+                  {{ bloque.ejercicios.length }}
+                </span>
+                <div class="flex-1 border-t border-outline-variant"></div>
+              </div>
+
+              <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
                 @for (e of bloque.ejercicios; track e.id) {
-                  <div class="rounded-[10px] bg-surface-container-low px-3 py-2.5 flex flex-wrap items-center justify-between gap-2"
-                       [class.opacity-60]="!e.activo">
-                    <div class="min-w-0">
-                      <p class="text-on-surface">
-                        {{ e.nombre }}
-                        @if (!e.activo) {
-                          <span class="badge-neutral ml-1">Dado de baja</span>
+                  <div class="card-base p-3 flex flex-col gap-2" [class.opacity-60]="!e.activo">
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="min-w-0">
+                        <p class="font-medium text-on-surface">{{ e.nombre }}</p>
+                        @if (e.descripcion) {
+                          <p class="text-xs text-on-surface-variant mt-0.5">{{ e.descripcion }}</p>
                         }
-                      </p>
-                      @if (e.descripcion) {
-                        <p class="text-xs text-on-surface-variant">{{ e.descripcion }}</p>
+                      </div>
+                      @if (!e.activo) {
+                        <span class="badge-neutral shrink-0">De baja</span>
                       }
                     </div>
-                    <div class="flex items-center gap-1.5 shrink-0">
+
+                    <div class="flex items-center gap-1 border-t border-outline-variant pt-2">
                       <button type="button" class="btn-icon" title="Editar"
                               [attr.aria-label]="'Editar ' + e.nombre"
                               [disabled]="ocupadoId() === e.id" (click)="abrirEdicionEjercicio(e)">

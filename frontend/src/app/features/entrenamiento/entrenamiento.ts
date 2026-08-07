@@ -7,6 +7,10 @@ import { ClientesService } from '../../core/services/clientes.service';
 import { EntrenamientoService } from '../../core/services/entrenamiento.service';
 import { ClienteResumen } from '../../core/models/cliente.model';
 import {
+  FiltroEstado,
+  FiltroEstadoControl,
+} from '../../shared/filtro-estado/filtro-estado';
+import {
   Ejercicio,
   GrupoMuscular,
   Rutina,
@@ -27,7 +31,7 @@ type Pestana = 'rutinas' | 'ejercicios';
  */
 @Component({
   selector: 'app-entrenamiento',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, FiltroEstadoControl],
   templateUrl: './entrenamiento.html',
 })
 export class Entrenamiento {
@@ -44,7 +48,24 @@ export class Entrenamiento {
 
   protected readonly cargando = signal(true);
   protected readonly error = signal<string | null>(null);
-  protected readonly verInactivos = signal(false);
+
+  /** Se traen SIEMPRE todos, activos e inactivos, y se filtra en memoria: son
+   * listas pequeñas y así cambiar de filtro es instantáneo en vez de un viaje
+   * al servidor por cada clic. */
+  protected readonly filtro = signal<FiltroEstado>('activos');
+
+  private coincide(activo: boolean): boolean {
+    const filtro = this.filtro();
+    return filtro === 'todos' || (filtro === 'activos') === activo;
+  }
+
+  protected readonly ejerciciosVisibles = computed(() =>
+    this.ejercicios().filter((e) => this.coincide(e.activo)),
+  );
+
+  protected readonly rutinasVisibles = computed(() =>
+    this.rutinas().filter((r) => this.coincide(r.activa)),
+  );
 
   // --- Catálogo ---
   protected readonly panelEjercicio = signal(false);
@@ -58,17 +79,28 @@ export class Entrenamiento {
     descripcion: [''],
   });
 
-  /** Ejercicios activos agrupados por grupo muscular, para el catálogo y
-   * para el selector al armar una rutina. */
+  /** Ejercicios agrupados por grupo muscular, respetando el filtro. */
   protected readonly porGrupo = computed(() => {
-    const grupos = this.grupos();
-    return grupos
+    const visibles = this.ejerciciosVisibles();
+    return this.grupos()
       .map((g) => ({
         grupo: g,
-        ejercicios: this.ejercicios().filter((e) => e.grupo_muscular === g.id),
+        ejercicios: visibles.filter((e) => e.grupo_muscular === g.id),
       }))
       .filter((bloque) => bloque.ejercicios.length > 0);
   });
+
+  /** Para el selector al armar una rutina: solo activos, y sin depender del
+   * filtro de la pantalla — una rutina nueva no puede llevar un ejercicio
+   * retirado por mucho que se estén mirando los inactivos. */
+  protected readonly porGrupoParaRutina = computed(() =>
+    this.grupos()
+      .map((g) => ({
+        grupo: g,
+        ejercicios: this.ejerciciosActivos().filter((e) => e.grupo_muscular === g.id),
+      }))
+      .filter((bloque) => bloque.ejercicios.length > 0),
+  );
 
   protected readonly ejerciciosActivos = computed(() =>
     this.ejercicios().filter((e) => e.activo),
@@ -102,7 +134,7 @@ export class Entrenamiento {
     forkJoin({
       ejercicios: this.servicio.listarEjercicios(true),
       grupos: this.servicio.listarGrupos(),
-      rutinas: this.servicio.listarRutinas(undefined, this.verInactivos()),
+      rutinas: this.servicio.listarRutinas(undefined, true),
       clientes: this.clientesService.listar(),
     }).subscribe({
       next: ({ ejercicios, grupos, rutinas, clientes }) => {
@@ -123,11 +155,6 @@ export class Entrenamiento {
     this.pestana.set(valor);
     this.panelEjercicio.set(false);
     this.panelRutina.set(false);
-  }
-
-  protected alternarInactivos(): void {
-    this.verInactivos.update((v) => !v);
-    this.cargar();
   }
 
   // --- Catálogo de ejercicios ------------------------------------------
