@@ -262,13 +262,18 @@ class ReporteUtilidadView(APIView):
     catálogo en el momento de vender, no el de hoy).
 
     Un plan no tiene costo de adquisición: lo que cuesta prestarlo son el
-    alquiler, el personal y los servicios, que viven en ``gastos`` (RF-24).
-    Por eso los ingresos por planes se devuelven APARTE y sin utilidad
-    asociada: restarles un costo por unidad no significaría nada.
+    alquiler, el personal y los servicios, que viven en ``gastos`` (RF-24) y
+    que HOY NO SE REGISTRAN DESDE NINGUNA PARTE -- los endpoints de gastos se
+    implementaron y se retiraron por decisión de producto. Por eso los
+    ingresos por planes se devuelven APARTE y sin utilidad asociada: sumarlos
+    como si fueran ganancia daría una cifra alegre y falsa.
 
-    ``utilidad_neta`` sí junta las tres cosas -- utilidad de productos, más
-    ingresos por planes, menos gastos --, que es lo que se entiende por "la
-    ganancia". Ver la advertencia sobre bases temporales junto a su cálculo.
+    Por lo mismo NO se devuelve ninguna "utilidad neta". Con la tabla de
+    gastos siempre vacía, esa cifra sería el margen bruto de los productos
+    con la etiqueta de "ganancia", que es precisamente lo que no debe
+    enseñarse. El agregado de ``gastos`` sí se sigue devolviendo, en cero,
+    para que la pantalla pueda decir que no están contemplados en vez de
+    callarlo.
     """
 
     permission_classes = [TienePermiso]
@@ -351,26 +356,13 @@ class ReporteUtilidadView(APIView):
             },
             'planes': {'ingresos': str(planes['ingresos'])},
             'pendiente_de_cobro': str(pendiente),
+            # Se devuelve aunque hoy sea siempre cero: así el frontend puede
+            # decir "0 gastos registrados" en vez de callar que la utilidad
+            # neta del gimnasio no está contemplada.
             'gastos': {
                 'total': str(gastos_agregado['total']),
                 'registrados': gastos_agregado['numero'],
             },
-            # Utilidad de productos + ingresos por planes - gastos.
-            #
-            # Es la cifra que la gente llama "la ganancia", y por eso se
-            # calcula aquí en vez de dejar que cada pantalla la sume a su
-            # manera y salgan dos números distintos.
-            #
-            # ADVERTENCIA, y el frontend la repite en la pantalla: las tres
-            # partes NO comparten base temporal. La utilidad de productos se
-            # cuenta al VENDER (el producto ya salió del inventario) y los
-            # gastos al PAGARLOS. Un mes con mucha venta a crédito y el
-            # arriendo pagado sale peor de lo que fue, y el siguiente mejor.
-            # Es correcto y es la práctica habitual, pero hay que decirlo o
-            # alguien cuadrará mal.
-            'utilidad_neta': str(
-                utilidad + planes['ingresos'] - gastos_agregado['total'],
-            ),
             'detalle': detalle,
         })
 

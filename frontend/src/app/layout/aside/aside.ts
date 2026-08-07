@@ -17,7 +17,6 @@ interface ItemNav {
     | 'reportes'
     | 'entrenamiento'
     | 'medidas'
-    | 'caja'
     | 'usuarios'
     | 'sedes';
   ruta: string;
@@ -51,7 +50,6 @@ const ITEMS_NAV: ItemNav[] = [
     disponible: true,
   },
   { id: 'medidas', ruta: '/medidas', etiqueta: 'Medidas', permiso: 'medidas.gestionar', disponible: true },
-  { id: 'caja', ruta: '/caja', etiqueta: 'Gastos e ingresos', permiso: 'gastos.gestionar', disponible: true },
   {
     id: 'usuarios',
     ruta: '/usuarios',

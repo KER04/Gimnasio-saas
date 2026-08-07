@@ -130,10 +130,6 @@ export const routes: Routes = [
         loadComponent: () => import('./features/usuarios/usuarios').then((m) => m.UsuariosGestion),
       },
       {
-        path: 'caja',
-        loadComponent: () => import('./features/caja/caja').then((m) => m.CajaMovimientos),
-      },
-      {
         path: 'entrenamiento',
         loadComponent: () =>
           import('./features/entrenamiento/entrenamiento').then((m) => m.Entrenamiento),

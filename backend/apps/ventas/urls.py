@@ -13,27 +13,20 @@ Membresías"): se trasladó a ``apps.membresias.urls`` al convertirse de
 listado de solo lectura en CRUD completo, junto al modelo ``Plan``. Sigue en
 la misma URL, mismo método (``GET``) y mismo permiso (``membresias.gestionar``)
 para quien ya lo consumía -- el POS no nota el cambio.
+
+Los GASTOS y los INGRESOS VARIOS (RF-24 y RF-07) no tienen endpoints: se
+implementaron y se retiraron por decisión de producto. Sus tablas y sus
+modelos siguen en el esquema, y ``v_corte_diario`` sigue preparada para
+sumar los ingresos varios el día que se retomen.
 """
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import VentaViewSet
-from .views_caja import (
-    CategoriaGastoListView,
-    CategoriaIngresoListView,
-    GastoViewSet,
-    IngresoOtroViewSet,
-)
 
 router = DefaultRouter()
 router.register('ventas', VentaViewSet, basename='venta')
-# Movimientos de caja sin venta detrás (RF-24 y RF-07). Comparten app con las
-# ventas porque comparten tablas y el corte de caja los suma juntos.
-router.register('gastos', GastoViewSet, basename='gasto')
-router.register('ingresos', IngresoOtroViewSet, basename='ingreso')
 
 urlpatterns = [
-    path('categorias-gasto/', CategoriaGastoListView.as_view(), name='categorias-gasto'),
-    path('categorias-ingreso/', CategoriaIngresoListView.as_view(), name='categorias-ingreso'),
     path('', include(router.urls)),
 ]
