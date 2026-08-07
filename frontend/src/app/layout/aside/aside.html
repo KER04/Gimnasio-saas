@@ -38,28 +38,74 @@
        izquierda + tinte de fondo en el elemento activo (no solo color de
        texto: así también se distingue sin depender del contraste). -->
   <nav class="flex flex-1 flex-col gap-1 text-sm font-medium">
-    @for (item of itemsVisibles(); track item.id) {
-      @if (item.disponible) {
-        <a
-          [routerLink]="item.ruta"
-          routerLinkActive
-          #enlaceActivo="routerLinkActive"
-          [class]="enlaceActivo.isActive ? CLASES_NAV_ACTIVO : CLASES_NAV_INACTIVO"
-          (click)="alNavegar()"
+    <!-- Lo de todos los días, sin desplegable: se pulsa decenas de veces por
+         jornada y un clic de más ahí se paga caro. -->
+    @for (item of itemsDirectos(); track item.id) {
+      <a
+        [routerLink]="item.ruta"
+        routerLinkActive
+        #enlaceActivo="routerLinkActive"
+        [class]="enlaceActivo.isActive ? CLASES_NAV_ACTIVO : CLASES_NAV_INACTIVO"
+        (click)="alNavegar()"
+      >
+        <ng-container [ngTemplateOutlet]="icono" [ngTemplateOutletContext]="{ id: item.id }" />
+        <span>{{ item.etiqueta }}</span>
+      </a>
+    }
+
+    @if (grupos().length > 0 || itemsSueltos().length > 0) {
+      <div class="my-1 border-t border-outline-variant"></div>
+    }
+
+    @for (grupo of grupos(); track grupo.id) {
+      <div>
+        <button
+          type="button"
+          [class]="CLASES_NAV_INACTIVO + ' w-full'"
+          [attr.aria-expanded]="estaAbierto(grupo)"
+          (click)="alternarGrupo(grupo)"
         >
-          <ng-container [ngTemplateOutlet]="icono" [ngTemplateOutletContext]="{ id: item.id }" />
-          <span>{{ item.etiqueta }}</span>
-        </a>
-      } @else {
-        <div
-          class="flex min-h-11 cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2 text-on-surface-variant/50"
-          [attr.title]="item.etiqueta + ': todavía no disponible'"
-        >
-          <ng-container [ngTemplateOutlet]="icono" [ngTemplateOutletContext]="{ id: item.id }" />
-          <span class="flex-1">{{ item.etiqueta }}</span>
-          <span class="badge-neutral">Pronto</span>
-        </div>
-      }
+          <ng-container [ngTemplateOutlet]="icono" [ngTemplateOutletContext]="{ id: grupo.id }" />
+          <span class="flex-1 text-left">{{ grupo.etiqueta }}</span>
+          <span
+            class="material-symbols-outlined shrink-0 text-[20px] transition-transform"
+            [class.rotate-180]="estaAbierto(grupo)"
+            aria-hidden="true"
+          >expand_more</span>
+        </button>
+
+        @if (estaAbierto(grupo)) {
+          <div class="mt-1 flex flex-col gap-1">
+            @for (item of grupo.items; track item.id) {
+              <a
+                [routerLink]="item.ruta"
+                routerLinkActive
+                #hijoActivo="routerLinkActive"
+                [class]="hijoActivo.isActive ? CLASES_HIJO_ACTIVO : CLASES_HIJO_INACTIVO"
+                (click)="alNavegar()"
+              >
+                <ng-container [ngTemplateOutlet]="icono" [ngTemplateOutletContext]="{ id: item.id }" />
+                <span>{{ item.etiqueta }}</span>
+              </a>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Grupos que quedaron con un solo ítem visible: se dibujan como
+         enlaces normales en vez de como un desplegable de un elemento. -->
+    @for (item of itemsSueltos(); track item.id) {
+      <a
+        [routerLink]="item.ruta"
+        routerLinkActive
+        #sueltoActivo="routerLinkActive"
+        [class]="sueltoActivo.isActive ? CLASES_NAV_ACTIVO : CLASES_NAV_INACTIVO"
+        (click)="alNavegar()"
+      >
+        <ng-container [ngTemplateOutlet]="icono" [ngTemplateOutletContext]="{ id: item.id }" />
+        <span>{{ item.etiqueta }}</span>
+      </a>
     }
   </nav>
 
@@ -75,16 +121,23 @@
 <ng-template #icono let-id="id">
   <span class="material-symbols-outlined shrink-0" aria-hidden="true">
     @switch (id) {
+      <!-- Directos -->
       @case ('dashboard') { space_dashboard }
-      @case ('clientes') { group }
-      @case ('pos') { point_of_sale }
-      @case ('ventas') { receipt_long }
-      @case ('inventario') { inventory_2 }
-      @case ('membresias') { card_membership }
       @case ('asistencia') { fact_check }
-      @case ('reportes') { bar_chart }
+      @case ('pos') { point_of_sale }
+      @case ('clientes') { group }
+      <!-- Grupos -->
       @case ('entrenamiento') { exercise }
+      @case ('catalogo') { inventory_2 }
+      @case ('consultas') { query_stats }
+      @case ('configuracion') { settings }
+      <!-- Dentro de los grupos -->
+      @case ('rutinas') { list_alt }
       @case ('medidas') { straighten }
+      @case ('membresias') { card_membership }
+      @case ('inventario') { inventory_2 }
+      @case ('reportes') { bar_chart }
+      @case ('ventas') { receipt_long }
       @case ('usuarios') { manage_accounts }
       @case ('sedes') { store }
     }
