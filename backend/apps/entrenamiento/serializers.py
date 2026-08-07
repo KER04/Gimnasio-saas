@@ -74,9 +74,14 @@ class RutinaEjercicioSerializer(serializers.ModelSerializer):
         model = RutinaEjercicio
         fields = (
             'id', 'ejercicio', 'ejercicio_nombre', 'grupo_nombre', 'orden',
-            'series', 'repeticiones', 'peso_kg', 'descanso_segundos', 'notas',
+            'series', 'repeticiones', 'duracion_minutos', 'peso_kg',
+            'descanso_segundos', 'notas',
         )
         read_only_fields = ('id',)
+        extra_kwargs = {
+            'repeticiones': {'required': False, 'allow_null': True},
+            'duracion_minutos': {'required': False, 'allow_null': True},
+        }
 
     def validate_ejercicio(self, valor):
         if not valor.activo:
@@ -86,15 +91,41 @@ class RutinaEjercicioSerializer(serializers.ModelSerializer):
         return valor
 
     def validate(self, datos):
-        # Réplica de `ck_rutejer_series` y `ck_rutejer_descanso`: sin esto, un
-        # payload inválido llega a PostgreSQL y estalla como 500.
-        for campo in ('series', 'repeticiones'):
-            if campo in datos and datos[campo] <= 0:
-                raise serializers.ValidationError({campo: 'Debe ser mayor que cero.'})
+        # Réplica de los CHECK de la tabla: sin esto, un payload inválido
+        # llega a PostgreSQL y estalla como 500 en vez de como un 400 legible.
+        series = datos.get('series')
+        if series is not None and series <= 0:
+            raise serializers.ValidationError({'series': 'Debe ser mayor que cero.'})
+
+        repeticiones = datos.get('repeticiones')
+        duracion = datos.get('duracion_minutos')
+
+        # `ck_rutejer_medida`: exactamente una de las dos. Un ejercicio de
+        # fuerza va por repeticiones y uno de cardio por minutos; "10
+        # repeticiones durante 5 minutos" no significa nada.
+        if repeticiones is None and duracion is None:
+            raise serializers.ValidationError({
+                'repeticiones': (
+                    'Indica las repeticiones, o los minutos si es un ejercicio de tiempo.'
+                ),
+            })
+        if repeticiones is not None and duracion is not None:
+            raise serializers.ValidationError({
+                'duracion_minutos': (
+                    'Un ejercicio se mide por repeticiones O por tiempo, no por las dos cosas.'
+                ),
+            })
+        if repeticiones is not None and repeticiones <= 0:
+            raise serializers.ValidationError({'repeticiones': 'Debe ser mayor que cero.'})
+        if duracion is not None and duracion <= 0:
+            raise serializers.ValidationError({
+                'duracion_minutos': 'Los minutos deben ser mayores que cero.',
+            })
+
         descanso = datos.get('descanso_segundos')
         if descanso is not None and not 0 <= descanso <= 3600:
             raise serializers.ValidationError({
-                'descanso_segundos': 'El descanso debe estar entre 0 y 3600 segundos (una hora).',
+                'descanso_segundos': 'El descanso no puede pasar de una hora.',
             })
         peso = datos.get('peso_kg')
         if peso is not None and peso < 0:

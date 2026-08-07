@@ -29,7 +29,13 @@ export interface EjercicioFormulario {
   activo?: boolean;
 }
 
-/** Un ejercicio dentro de un día. `peso_kg` es lo PLANIFICADO. */
+/**
+ * Un ejercicio dentro de un día. `peso_kg` es lo PLANIFICADO por el
+ * entrenador, no lo que el cliente levantó.
+ *
+ * Se mide por repeticiones O por tiempo, nunca por las dos: press banca va en
+ * repeticiones y correr en minutos. La base lo impone con `ck_rutejer_medida`.
+ */
 export interface RutinaEjercicio {
   id?: number;
   ejercicio: number;
@@ -37,8 +43,14 @@ export interface RutinaEjercicio {
   grupo_nombre?: string;
   orden: number;
   series: number;
-  repeticiones: number;
+  /** `null` si el ejercicio va por tiempo. */
+  repeticiones: number | null;
+  /** `null` si el ejercicio va por repeticiones. */
+  duracion_minutos: number | null;
   peso_kg: string | null;
+  /** Se guarda en SEGUNDOS (así es la columna), pero la pantalla trabaja en
+   * minutos: nadie prescribe "90 segundos de descanso", dice "minuto y
+   * medio". */
   descanso_segundos: number | null;
   notas: string | null;
 }

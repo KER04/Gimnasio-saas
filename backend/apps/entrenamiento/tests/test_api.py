@@ -178,6 +178,77 @@ class RutinasTestCase(BaseEntrenamientoTestCase):
 
         self.assertEqual(respuesta.status_code, 400, respuesta.content)
 
+    def test_un_ejercicio_se_puede_medir_por_tiempo(self):
+        """Correr o saltar la cuerda se prescriben en minutos, no en
+        repeticiones. Antes solo cabía "series × repeticiones" y la única
+        forma de anotarlo era escribirlo en las notas."""
+        ejercicio = self._crear_ejercicio('Correr', self.grupo_pierna).json()['id']
+
+        respuesta = self._peticion('post', '/api/rutinas/', {
+            'cliente': self.cliente.id, 'nombre': 'Cardio',
+            'dias': [{'numero': 1, 'nombre': 'A', 'ejercicios': [
+                {'ejercicio': ejercicio, 'orden': 1, 'series': 1, 'duracion_minutos': 20},
+            ]}],
+        })
+
+        self.assertEqual(respuesta.status_code, 201, respuesta.content)
+        guardado = respuesta.json()['dias'][0]['ejercicios'][0]
+        self.assertEqual(guardado['duracion_minutos'], 20)
+        self.assertIsNone(guardado['repeticiones'])
+
+    def test_exige_una_medida_u_otra(self):
+        """Un ejercicio sin repeticiones ni minutos no dice qué hacer."""
+        ejercicio = self._crear_ejercicio().json()['id']
+
+        respuesta = self._peticion('post', '/api/rutinas/', {
+            'cliente': self.cliente.id, 'nombre': 'Sin medida',
+            'dias': [{'numero': 1, 'nombre': 'A', 'ejercicios': [
+                {'ejercicio': ejercicio, 'orden': 1, 'series': 3},
+            ]}],
+        })
+
+        self.assertEqual(respuesta.status_code, 400, respuesta.content)
+
+    def test_no_admite_repeticiones_y_tiempo_a_la_vez(self):
+        """"10 repeticiones durante 5 minutos" no significa nada, y dejaría a
+        la pantalla sin saber cuál enseñar. Lo impide `ck_rutejer_medida`."""
+        ejercicio = self._crear_ejercicio().json()['id']
+
+        respuesta = self._peticion('post', '/api/rutinas/', {
+            'cliente': self.cliente.id, 'nombre': 'Ambigua',
+            'dias': [{'numero': 1, 'nombre': 'A', 'ejercicios': [
+                {'ejercicio': ejercicio, 'orden': 1, 'series': 3,
+                 'repeticiones': 10, 'duracion_minutos': 5},
+            ]}],
+        })
+
+        self.assertEqual(respuesta.status_code, 400, respuesta.content)
+
+    def test_el_error_dice_en_que_dia_y_ejercicio_esta(self):
+        """La estructura anidada es lo que el frontend necesita para poder
+        decir "Día 2 · Ejercicio 1" en vez de un mensaje suelto."""
+        ejercicio = self._crear_ejercicio().json()['id']
+
+        respuesta = self._peticion('post', '/api/rutinas/', {
+            'cliente': self.cliente.id, 'nombre': 'Con fallo',
+            'dias': [
+                {'numero': 1, 'nombre': 'A', 'ejercicios': [
+                    {'ejercicio': ejercicio, 'orden': 1, 'series': 3, 'repeticiones': 10},
+                ]},
+                {'numero': 2, 'nombre': 'B', 'ejercicios': [
+                    {'ejercicio': ejercicio, 'orden': 1, 'series': 0, 'repeticiones': 10},
+                ]},
+            ],
+        })
+
+        self.assertEqual(respuesta.status_code, 400, respuesta.content)
+        cuerpo = respuesta.json()
+        self.assertIn('dias', cuerpo)
+        # El primer día está bien y el segundo mal: la posición tiene que
+        # conservarse para que el mensaje pueda señalar cuál.
+        self.assertEqual(len(cuerpo['dias']), 2)
+        self.assertIn('series', cuerpo['dias'][1]['ejercicios'][0])
+
     def test_rechaza_series_o_repeticiones_en_cero(self):
         ejercicio = self._crear_ejercicio().json()['id']
 

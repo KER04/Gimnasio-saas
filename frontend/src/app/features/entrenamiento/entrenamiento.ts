@@ -10,6 +10,7 @@ import {
   FiltroEstado,
   FiltroEstadoControl,
 } from '../../shared/filtro-estado/filtro-estado';
+import { mensajesDeError } from '../../core/utils/errores.util';
 import {
   Ejercicio,
   GrupoMuscular,
@@ -329,6 +330,10 @@ export class Entrenamiento {
             ? 1
             : Math.max(...dia.ejercicios.map((e) => e.orden)) + 1;
         const catalogo = this.ejercicios().find((e) => e.id === ejercicioId);
+        // Los de cardio arrancan por TIEMPO: nadie prescribe "10
+        // repeticiones de correr", y así el entrenador no tiene que cambiar
+        // el modo a mano en el caso más obvio.
+        const porTiempo = catalogo?.grupo_nombre?.toLowerCase() === 'cardio';
         return {
           ...dia,
           ejercicios: [
@@ -338,8 +343,9 @@ export class Entrenamiento {
               ejercicio_nombre: catalogo?.nombre,
               grupo_nombre: catalogo?.grupo_nombre,
               orden,
-              series: 3,
-              repeticiones: 10,
+              series: porTiempo ? 1 : 3,
+              repeticiones: porTiempo ? null : 10,
+              duracion_minutos: porTiempo ? 20 : null,
               peso_kg: null,
               descanso_segundos: null,
               notas: null,
@@ -384,11 +390,11 @@ export class Entrenamiento {
     );
   }
 
-  protected cambiarCampo(
+  /** Aplica un cambio a un ejercicio concreto sin tocar los demás. */
+  private editarEjercicio(
     indiceDia: number,
     indiceEjercicio: number,
-    campo: 'series' | 'repeticiones' | 'peso_kg' | 'descanso_segundos',
-    valor: string,
+    cambio: (e: RutinaEjercicio) => RutinaEjercicio,
   ): void {
     this.dias.update((dias) =>
       dias.map((dia, i) =>
@@ -396,22 +402,63 @@ export class Entrenamiento {
           ? dia
           : {
               ...dia,
-              ejercicios: dia.ejercicios.map((e, j) => {
-                if (j !== indiceEjercicio) {
-                  return e;
-                }
-                if (campo === 'peso_kg') {
-                  return { ...e, peso_kg: valor.trim() || null };
-                }
-                const numero = Number(valor);
-                if (campo === 'descanso_segundos') {
-                  return { ...e, descanso_segundos: valor.trim() === '' ? null : numero };
-                }
-                return { ...e, [campo]: numero };
-              }),
+              ejercicios: dia.ejercicios.map((e, j) => (j === indiceEjercicio ? cambio(e) : e)),
             },
       ),
     );
+  }
+
+  protected cambiarCampo(
+    indiceDia: number,
+    indiceEjercicio: number,
+    campo: 'series' | 'repeticiones' | 'duracion_minutos' | 'peso_kg' | 'descanso',
+    valor: string,
+  ): void {
+    const texto = valor.trim();
+    this.editarEjercicio(indiceDia, indiceEjercicio, (e) => {
+      if (campo === 'peso_kg') {
+        return { ...e, peso_kg: texto || null };
+      }
+      if (campo === 'descanso') {
+        // La pantalla trabaja en MINUTOS y la columna guarda segundos: nadie
+        // prescribe "90 segundos", dice "minuto y medio". Se admiten
+        // decimales por eso mismo.
+        const minutos = Number(texto.replace(',', '.'));
+        return {
+          ...e,
+          descanso_segundos:
+            texto === '' || Number.isNaN(minutos) ? null : Math.round(minutos * 60),
+        };
+      }
+      const numero = Number(texto);
+      const limpio = texto === '' || Number.isNaN(numero) ? null : numero;
+      return { ...e, [campo]: limpio };
+    });
+  }
+
+  /**
+   * Cambia entre medir por repeticiones y medir por tiempo.
+   *
+   * Se vacía SIEMPRE la otra medida: la base exige exactamente una
+   * (`ck_rutejer_medida`), y dejar las dos rellenadas daría "10 repeticiones
+   * durante 5 minutos", que no significa nada.
+   */
+  protected cambiarModo(indiceDia: number, indiceEjercicio: number, porTiempo: boolean): void {
+    this.editarEjercicio(indiceDia, indiceEjercicio, (e) =>
+      porTiempo
+        ? { ...e, repeticiones: null, duracion_minutos: e.duracion_minutos ?? 20 }
+        : { ...e, duracion_minutos: null, repeticiones: e.repeticiones ?? 10 },
+    );
+  }
+
+  /** Los minutos que enseña la casilla de descanso, desde los segundos
+   * guardados. Sin decimales cuando son exactos: "2" y no "2.0". */
+  protected descansoEnMinutos(segundos: number | null): string {
+    if (segundos === null) {
+      return '';
+    }
+    const minutos = segundos / 60;
+    return Number.isInteger(minutos) ? String(minutos) : minutos.toFixed(1);
   }
 
   protected guardarRutina(): void {
@@ -496,14 +543,18 @@ export class Entrenamiento {
     return Array.isArray(valor) ? valor : [valor];
   }
 
-  /** Errores de la estructura anidada: el backend los devuelve bajo `dias` y
-   * no encajan en ningún campo del formulario. */
-  protected errorDeDias(): string | null {
+  /**
+   * Errores de la estructura anidada, ya legibles.
+   *
+   * El backend los devuelve reflejando la forma del cuerpo enviado: bajo
+   * `dias`, dentro de `ejercicios`, dentro del campo. Antes se hacía
+   * `String(valor[0])` sobre eso y salía `[object Object]`: el usuario sabía
+   * que algo estaba mal, pero no qué ni dónde. Ahora sale
+   * "Día 1 · Ejercicio 2 · series: Debe ser mayor que cero".
+   */
+  protected erroresDeDias(): string[] {
     const valor = this.erroresRutina()['dias'];
-    if (valor === undefined) {
-      return null;
-    }
-    return Array.isArray(valor) ? String(valor[0]) : String(valor);
+    return valor === undefined ? [] : mensajesDeError({ dias: valor });
   }
 
   protected totalEjercicios(rutina: Rutina): number {
@@ -524,11 +575,20 @@ export class Entrenamiento {
     if (segundos === null) {
       return '—';
     }
-    if (segundos < 60) {
-      return `${segundos} s`;
+    const minutos = segundos / 60;
+    return Number.isInteger(minutos) ? `${minutos} min` : `${minutos.toFixed(1)} min`;
+  }
+
+  /** Cómo se lee la carga de un ejercicio: "4×8" o "20 min". */
+  protected medida(ejercicio: RutinaEjercicio): string {
+    if (ejercicio.duracion_minutos !== null) {
+      const series = ejercicio.series > 1 ? `${ejercicio.series} × ` : '';
+      return `${series}${ejercicio.duracion_minutos} min`;
     }
-    const minutos = Math.floor(segundos / 60);
-    const resto = segundos % 60;
-    return resto === 0 ? `${minutos} min` : `${minutos} min ${resto} s`;
+    return `${ejercicio.series} × ${ejercicio.repeticiones}`;
+  }
+
+  protected esPorTiempo(ejercicio: RutinaEjercicio): boolean {
+    return ejercicio.duracion_minutos !== null;
   }
 }

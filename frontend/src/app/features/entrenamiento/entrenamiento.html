@@ -138,8 +138,15 @@
         </div>
       </form>
 
-      @if (errorDeDias(); as e) {
-        <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2">{{ e }}</p>
+      @if (erroresDeDias().length > 0) {
+        <div class="rounded-[10px] bg-danger-bg text-danger-text px-3 py-2.5">
+          <p class="text-sm font-medium">Revisa estos puntos:</p>
+          <ul class="mt-1 flex flex-col gap-0.5">
+            @for (e of erroresDeDias(); track e) {
+              <li class="text-sm">· {{ e }}</li>
+            }
+          </ul>
+        </div>
       }
 
       @if (ejerciciosActivos().length === 0) {
@@ -158,8 +165,9 @@
       <!-- Días -->
       <div class="flex flex-col gap-4 border-t border-outline-variant pt-4">
         @for (dia of dias(); track $index; let iDia = $index) {
-          <div class="rounded-[10px] bg-surface-container-low p-3 flex flex-col gap-3">
-            <div class="flex flex-wrap items-center gap-2">
+          <div class="rounded-xl border border-outline-variant overflow-hidden">
+            <!-- Cabecera del día -->
+            <div class="flex flex-wrap items-center gap-2 bg-surface-container-low px-3 py-2.5">
               <span class="flex items-center justify-center size-8 shrink-0 rounded-full bg-primary text-on-primary text-sm font-semibold">
                 {{ dia.numero }}
               </span>
@@ -170,100 +178,137 @@
                 (input)="renombrarDia(iDia, $any($event.target).value)"
                 aria-label="Nombre del día"
               />
+              <span class="text-xs text-on-surface-variant whitespace-nowrap">
+                {{ dia.ejercicios.length }}
+                {{ dia.ejercicios.length === 1 ? 'ejercicio' : 'ejercicios' }}
+              </span>
               <button type="button" class="btn-icon" [attr.aria-label]="'Quitar el día ' + dia.numero"
                       (click)="quitarDia(iDia)">
                 <span class="material-symbols-outlined" aria-hidden="true">delete</span>
               </button>
             </div>
 
-            @if (dia.ejercicios.length > 0) {
-              <div class="overflow-x-auto">
-                <table class="w-full text-sm min-w-[560px]">
-                  <thead>
-                    <tr class="text-left text-xs text-on-surface-variant">
-                      <th class="py-1.5 pr-2 font-medium">Ejercicio</th>
-                      <th class="py-1.5 pr-2 font-medium w-20">Series</th>
-                      <th class="py-1.5 pr-2 font-medium w-20">Reps</th>
-                      <th class="py-1.5 pr-2 font-medium w-24">Peso (kg)</th>
-                      <th class="py-1.5 pr-2 font-medium w-28">Descanso (s)</th>
-                      <th class="py-1.5 font-medium text-right">Orden</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (ej of dia.ejercicios; track $index; let iEj = $index) {
-                      <tr class="border-t border-outline-variant">
-                        <td class="py-2 pr-2">
-                          <p class="text-on-surface">{{ ej.ejercicio_nombre }}</p>
-                          <p class="text-xs text-on-surface-variant">{{ ej.grupo_nombre }}</p>
-                        </td>
-                        <td class="py-2 pr-2">
-                          <input type="number" min="1" class="field-input" [value]="ej.series"
-                                 (input)="cambiarCampo(iDia, iEj, 'series', $any($event.target).value)"
-                                 aria-label="Series" />
-                        </td>
-                        <td class="py-2 pr-2">
-                          <input type="number" min="1" class="field-input" [value]="ej.repeticiones"
-                                 (input)="cambiarCampo(iDia, iEj, 'repeticiones', $any($event.target).value)"
-                                 aria-label="Repeticiones" />
-                        </td>
-                        <td class="py-2 pr-2">
-                          <input type="text" inputmode="decimal" class="field-input"
-                                 [value]="ej.peso_kg ?? ''"
-                                 (input)="cambiarCampo(iDia, iEj, 'peso_kg', $any($event.target).value)"
-                                 aria-label="Peso planificado" />
-                        </td>
-                        <td class="py-2 pr-2">
-                          <input type="number" min="0" max="3600" class="field-input"
-                                 [value]="ej.descanso_segundos ?? ''"
-                                 (input)="cambiarCampo(iDia, iEj, 'descanso_segundos', $any($event.target).value)"
-                                 aria-label="Descanso en segundos" />
-                        </td>
-                        <td class="py-2">
-                          <div class="flex items-center justify-end gap-0.5">
-                            <button type="button" class="btn-icon" aria-label="Subir"
-                                    [disabled]="iEj === 0" (click)="moverEjercicio(iDia, iEj, -1)">
-                              <span class="material-symbols-outlined" aria-hidden="true">arrow_upward</span>
-                            </button>
-                            <button type="button" class="btn-icon" aria-label="Bajar"
-                                    [disabled]="iEj === dia.ejercicios.length - 1"
-                                    (click)="moverEjercicio(iDia, iEj, 1)">
-                              <span class="material-symbols-outlined" aria-hidden="true">arrow_downward</span>
-                            </button>
-                            <button type="button" class="btn-icon" aria-label="Quitar"
-                                    (click)="quitarEjercicio(iDia, iEj)">
-                              <span class="material-symbols-outlined" aria-hidden="true">close</span>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
-              </div>
-            } @else {
-              <p class="text-sm text-on-surface-variant">Este día todavía no tiene ejercicios.</p>
-            }
+            <!-- Ejercicios del día -->
+            <div class="p-3 flex flex-col gap-2">
+              @if (dia.ejercicios.length === 0) {
+                <p class="text-sm text-on-surface-variant py-2 text-center">
+                  Este día todavía no tiene ejercicios.
+                </p>
+              }
 
-            <select
-              class="field-input"
-              aria-label="Añadir ejercicio a este día"
-              [value]="''"
-              (change)="agregarEjercicio(iDia, +$any($event.target).value); $any($event.target).value = ''"
-            >
-              <option value="">Añadir ejercicio…</option>
-              <!-- Solo activos, y sin depender del filtro de la pantalla: una
-                   rutina nueva no puede llevar un ejercicio retirado por mucho
-                   que se estén mirando los inactivos. -->
-              @for (bloque of porGrupoParaRutina(); track bloque.grupo.id) {
-                <optgroup [label]="bloque.grupo.nombre">
-                  @for (e of bloque.ejercicios; track e.id) {
-                    @if (e.activo) {
+              @for (ej of dia.ejercicios; track $index; let iEj = $index) {
+                <div class="rounded-[10px] border border-outline-variant p-3 flex flex-col gap-3">
+                  <!-- Nombre y orden -->
+                  <div class="flex items-start gap-2">
+                    <span class="flex items-center justify-center size-6 shrink-0 rounded-full bg-surface-container-highest text-xs font-semibold text-on-surface-variant mt-0.5">
+                      {{ iEj + 1 }}
+                    </span>
+                    <div class="min-w-0 flex-1">
+                      <p class="font-medium text-on-surface">{{ ej.ejercicio_nombre }}</p>
+                      <p class="text-xs text-on-surface-variant">{{ ej.grupo_nombre }}</p>
+                    </div>
+                    <div class="flex items-center gap-0.5 shrink-0">
+                      <button type="button" class="btn-icon" aria-label="Subir"
+                              [disabled]="iEj === 0" (click)="moverEjercicio(iDia, iEj, -1)">
+                        <span class="material-symbols-outlined" aria-hidden="true">arrow_upward</span>
+                      </button>
+                      <button type="button" class="btn-icon" aria-label="Bajar"
+                              [disabled]="iEj === dia.ejercicios.length - 1"
+                              (click)="moverEjercicio(iDia, iEj, 1)">
+                        <span class="material-symbols-outlined" aria-hidden="true">arrow_downward</span>
+                      </button>
+                      <button type="button" class="btn-icon" aria-label="Quitar"
+                              (click)="quitarEjercicio(iDia, iEj)">
+                        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Cómo se mide: repeticiones o tiempo. Nunca las dos: la
+                       base exige exactamente una. -->
+                  <div class="inline-flex self-start rounded-lg border border-outline-variant p-0.5">
+                    <button type="button"
+                            class="rounded-[6px] px-2.5 py-1 text-xs font-medium transition-colors"
+                            [class]="!esPorTiempo(ej)
+                              ? 'bg-primary text-on-primary'
+                              : 'text-on-surface-variant hover:bg-surface-container-low'"
+                            (click)="cambiarModo(iDia, iEj, false)">
+                      Repeticiones
+                    </button>
+                    <button type="button"
+                            class="rounded-[6px] px-2.5 py-1 text-xs font-medium transition-colors"
+                            [class]="esPorTiempo(ej)
+                              ? 'bg-primary text-on-primary'
+                              : 'text-on-surface-variant hover:bg-surface-container-low'"
+                            (click)="cambiarModo(iDia, iEj, true)">
+                      Tiempo
+                    </button>
+                  </div>
+
+                  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div>
+                      <label class="block text-xs text-on-surface-variant mb-1">Series</label>
+                      <input type="number" min="1" class="field-input" [value]="ej.series"
+                             (input)="cambiarCampo(iDia, iEj, 'series', $any($event.target).value)"
+                             aria-label="Series" />
+                    </div>
+
+                    @if (esPorTiempo(ej)) {
+                      <div>
+                        <label class="block text-xs text-on-surface-variant mb-1">Minutos</label>
+                        <input type="number" min="1" class="field-input"
+                               [value]="ej.duracion_minutos ?? ''"
+                               (input)="cambiarCampo(iDia, iEj, 'duracion_minutos', $any($event.target).value)"
+                               aria-label="Duración en minutos" />
+                      </div>
+                    } @else {
+                      <div>
+                        <label class="block text-xs text-on-surface-variant mb-1">Repeticiones</label>
+                        <input type="number" min="1" class="field-input"
+                               [value]="ej.repeticiones ?? ''"
+                               (input)="cambiarCampo(iDia, iEj, 'repeticiones', $any($event.target).value)"
+                               aria-label="Repeticiones" />
+                      </div>
+                    }
+
+                    <div>
+                      <label class="block text-xs text-on-surface-variant mb-1">Peso (kg)</label>
+                      <input type="text" inputmode="decimal" class="field-input"
+                             [value]="ej.peso_kg ?? ''" placeholder="—"
+                             (input)="cambiarCampo(iDia, iEj, 'peso_kg', $any($event.target).value)"
+                             aria-label="Peso planificado" />
+                    </div>
+
+                    <div>
+                      <label class="block text-xs text-on-surface-variant mb-1">Descanso (min)</label>
+                      <input type="text" inputmode="decimal" class="field-input"
+                             [value]="descansoEnMinutos(ej.descanso_segundos)" placeholder="—"
+                             (input)="cambiarCampo(iDia, iEj, 'descanso', $any($event.target).value)"
+                             aria-label="Descanso en minutos" />
+                    </div>
+                  </div>
+                </div>
+              }
+
+              <select
+                class="field-input"
+                aria-label="Añadir ejercicio a este día"
+                [value]="''"
+                (change)="agregarEjercicio(iDia, +$any($event.target).value); $any($event.target).value = ''"
+              >
+                <option value="">+ Añadir ejercicio…</option>
+                <!-- Solo activos, y sin depender del filtro de la pantalla: una
+                     rutina nueva no puede llevar un ejercicio retirado por mucho
+                     que se estén mirando los inactivos. -->
+                @for (bloque of porGrupoParaRutina(); track bloque.grupo.id) {
+                  <optgroup [label]="bloque.grupo.nombre">
+                    @for (e of bloque.ejercicios; track e.id) {
                       <option [value]="e.id">{{ e.nombre }}</option>
                     }
-                  }
-                </optgroup>
-              }
-            </select>
+                  </optgroup>
+                }
+              </select>
+            </div>
           </div>
         }
 
@@ -440,7 +485,7 @@
                                 @for (ej of dia.ejercicios; track ej.id) {
                                   <li class="text-xs text-on-surface-variant">
                                     <span class="text-on-surface">{{ ej.ejercicio_nombre }}</span>
-                                    · {{ ej.series }}×{{ ej.repeticiones }}
+                                    · {{ medida(ej) }}
                                     @if (ej.peso_kg) {
                                       · {{ ej.peso_kg }} kg
                                     }
@@ -527,20 +572,35 @@
 
               <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
                 @for (e of bloque.ejercicios; track e.id) {
-                  <div class="card-base p-3 flex flex-col gap-2" [class.opacity-60]="!e.activo">
+                  <!-- `group`: las acciones aparecen al pasar el ratón y en
+                       móvil siempre (no hay hover que valga en una pantalla
+                       táctil). Así la tarjeta se lee limpia y no como una
+                       barra de botones. -->
+                  <div
+                    class="group relative rounded-xl border border-outline-variant p-3.5 pl-4 transition-colors hover:border-primary hover:bg-primary-container/10"
+                    [class.opacity-60]="!e.activo"
+                  >
+                    <!-- Franja del grupo muscular: identifica el bloque de un
+                         vistazo al recorrer la lista. -->
+                    <span
+                      class="absolute inset-y-0 left-0 w-1 rounded-l-xl"
+                      [class]="e.activo ? 'bg-primary' : 'bg-outline-variant'"
+                      aria-hidden="true"
+                    ></span>
+
                     <div class="flex items-start justify-between gap-2">
                       <div class="min-w-0">
                         <p class="font-medium text-on-surface">{{ e.nombre }}</p>
-                        @if (e.descripcion) {
-                          <p class="text-xs text-on-surface-variant mt-0.5">{{ e.descripcion }}</p>
-                        }
+                        <p class="text-xs text-on-surface-variant mt-0.5">
+                          {{ e.descripcion || 'Sin descripción' }}
+                        </p>
                       </div>
                       @if (!e.activo) {
                         <span class="badge-neutral shrink-0">De baja</span>
                       }
                     </div>
 
-                    <div class="flex items-center gap-1 border-t border-outline-variant pt-2">
+                    <div class="mt-2 flex items-center gap-0.5 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100">
                       <button type="button" class="btn-icon" title="Editar"
                               [attr.aria-label]="'Editar ' + e.nombre"
                               [disabled]="ocupadoId() === e.id" (click)="abrirEdicionEjercicio(e)">

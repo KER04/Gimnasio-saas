@@ -262,7 +262,17 @@ class RutinaEjercicio(models.Model):
     # Peso PLANIFICADO por el entrenador. El ejecutado se registra en registros_ejercicios.
     peso_kg = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     series = models.SmallIntegerField()
-    repeticiones = models.SmallIntegerField()
+    # NULL cuando el ejercicio se mide por TIEMPO en vez de por repeticiones.
+    repeticiones = models.SmallIntegerField(null=True, blank=True)
+    # Desviación DELIBERADA del .sql original, igual que `es_staff` en
+    # `Usuario`: correr, saltar la cuerda o la caminadora se prescriben en
+    # minutos, no en repeticiones. Sin esta columna, la única forma de
+    # anotarlo era escribirlo en `notas`, donde el dato deja de poder
+    # consultarse y la pantalla tendría que adivinarlo leyendo texto libre.
+    #
+    # Un ejercicio lleva repeticiones O duración, nunca las dos ni ninguna:
+    # lo impone `ck_rutejer_medida`.
+    duracion_minutos = models.SmallIntegerField(null=True, blank=True)
     descanso_segundos = models.SmallIntegerField(null=True, blank=True)
     notas = models.TextField(null=True, blank=True)
 
@@ -271,8 +281,16 @@ class RutinaEjercicio(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['id', 'tenant'], name='uq_rutejer_id_tenant'),
             models.UniqueConstraint(fields=['rutina_dia', 'orden'], name='uq_rutejer_orden'),
+            models.CheckConstraint(condition=models.Q(series__gt=0), name='ck_rutejer_series'),
+            # Exactamente una de las dos medidas. Sin el "y no las dos", una
+            # fila podría decir "10 repeticiones durante 5 minutos", que no
+            # significa nada y la pantalla no sabría cuál enseñar.
             models.CheckConstraint(
-                condition=models.Q(series__gt=0, repeticiones__gt=0), name='ck_rutejer_series',
+                condition=(
+                    models.Q(repeticiones__gt=0, duracion_minutos__isnull=True)
+                    | models.Q(duracion_minutos__gt=0, repeticiones__isnull=True)
+                ),
+                name='ck_rutejer_medida',
             ),
             models.CheckConstraint(
                 condition=models.Q(peso_kg__isnull=True) | models.Q(peso_kg__gte=0), name='ck_rutejer_peso',
