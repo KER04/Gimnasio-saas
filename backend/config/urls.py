@@ -35,6 +35,8 @@ urlpatterns = [
     path('api/', include('apps.inventario.urls')),
     # /api/reportes/... (RF-08): caja, ventas y productos. Solo agregados.
     path('api/', include('apps.reportes.urls')),
+    # /api/ejercicios/, /api/rutinas/ y /api/fichas-medidas/ (RF-12).
+    path('api/', include('apps.entrenamiento.urls')),
     # Panel del PROVEEDOR (no de un gimnasio): /api/plataforma/...
     # Identidad propia (`usuarios_plataforma`) y sin tenant. Ver
     # TENANT_EXEMPT_PATHS y apps/plataforma/auth.py.

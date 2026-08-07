@@ -15,6 +15,8 @@ interface ItemNav {
     | 'membresias'
     | 'asistencia'
     | 'reportes'
+    | 'entrenamiento'
+    | 'medidas'
     | 'caja'
     | 'usuarios'
     | 'sedes';
@@ -41,6 +43,14 @@ const ITEMS_NAV: ItemNav[] = [
   },
   { id: 'asistencia', ruta: '/asistencia', etiqueta: 'Asistencia', permiso: 'clientes.ver', disponible: true },
   { id: 'reportes', ruta: '/reportes', etiqueta: 'Reportes', permiso: 'reportes.ver', disponible: true },
+  {
+    id: 'entrenamiento',
+    ruta: '/entrenamiento',
+    etiqueta: 'Entrenamiento',
+    permiso: 'rutinas.gestionar',
+    disponible: true,
+  },
+  { id: 'medidas', ruta: '/medidas', etiqueta: 'Medidas', permiso: 'medidas.gestionar', disponible: true },
   { id: 'caja', ruta: '/caja', etiqueta: 'Gastos e ingresos', permiso: 'gastos.gestionar', disponible: true },
   {
     id: 'usuarios',

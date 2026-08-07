@@ -1,0 +1,292 @@
+<div class="flex flex-col gap-5">
+  <div class="rounded-xl bg-primary px-5 py-5 sm:px-6 flex flex-wrap items-center justify-between gap-4">
+    <div>
+      <h1 class="text-headline-lg-mobile sm:text-headline-lg text-on-primary">Medidas</h1>
+      <p class="mt-1 text-body-md text-primary-fixed">
+        Seguimiento corporal de los clientes, control a control.
+      </p>
+    </div>
+    <button type="button" class="btn-inverted" (click)="abrirAltaFicha()">
+      <span class="material-symbols-outlined" aria-hidden="true">straighten</span>
+      Nuevo proceso
+    </button>
+  </div>
+
+  @if (error()) {
+    <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2" role="alert">
+      {{ error() }}
+    </p>
+  }
+
+  <!-- Abrir proceso -->
+  @if (panelFicha()) {
+    <form class="card-base p-4 sm:p-5 flex flex-col gap-4" [formGroup]="formFicha"
+          (ngSubmit)="crearFicha()">
+      <div class="flex items-start justify-between gap-2">
+        <h2 class="text-headline-md text-on-surface">Nuevo proceso de medidas</h2>
+        <button type="button" class="btn-icon" aria-label="Cerrar" (click)="panelFicha.set(false)">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
+      </div>
+
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label for="fi-cliente" class="block text-sm font-medium text-on-surface mb-1">Cliente *</label>
+          <select id="fi-cliente" class="field-input" formControlName="cliente">
+            <option value="">Elige uno…</option>
+            @for (c of clientesDisponibles(); track c.id) {
+              <option [value]="c.id">{{ c.nombre }}</option>
+            }
+          </select>
+          <p class="mt-1 text-xs text-on-surface-variant">
+            Solo aparecen los que no tienen un proceso abierto: cada cliente puede tener uno a la vez.
+          </p>
+          @for (e of erroresDe('cliente'); track e) {
+            <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+          }
+        </div>
+
+        <div>
+          <label for="fi-estatura" class="block text-sm font-medium text-on-surface mb-1">
+            Estatura (cm)
+          </label>
+          <input id="fi-estatura" type="text" inputmode="decimal" class="field-input"
+                 placeholder="175" formControlName="estatura_cm" />
+          <p class="mt-1 text-xs text-on-surface-variant">
+            En centímetros, no en metros: 175, no 1,75.
+          </p>
+          @for (e of erroresDe('estatura_cm'); track e) {
+            <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+          }
+        </div>
+
+        <div>
+          <label for="fi-modalidad" class="block text-sm font-medium text-on-surface mb-1">
+            Modalidad
+          </label>
+          <input id="fi-modalidad" type="text" class="field-input" placeholder="Presencial"
+                 formControlName="modalidad" />
+        </div>
+
+        <div>
+          <label for="fi-whatsapp" class="block text-sm font-medium text-on-surface mb-1">WhatsApp</label>
+          <input id="fi-whatsapp" type="text" inputmode="tel" class="field-input"
+                 formControlName="whatsapp" />
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-2">
+        <button type="submit" class="btn-primary" [disabled]="guardando()">
+          {{ guardando() ? 'Abriendo…' : 'Abrir proceso' }}
+        </button>
+        <button type="button" class="btn-secondary" (click)="panelFicha.set(false)">Cancelar</button>
+      </div>
+    </form>
+  }
+
+  <!-- Detalle -->
+  @if (fichaAbierta(); as f) {
+    <section class="card-base p-4 sm:p-5 flex flex-col gap-4">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 class="text-headline-md text-on-surface">{{ f.cliente_nombre }}</h2>
+          <p class="text-sm text-on-surface-variant">
+            Desde {{ fecha(f.fecha_inicio) }}
+            @if (f.estatura_cm) {
+              · {{ f.estatura_cm }} cm
+            }
+            @if (f.modalidad) {
+              · {{ f.modalidad }}
+            }
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          @if (f.activa) {
+            <button type="button" class="btn-primary" (click)="abrirControl()">
+              <span class="material-symbols-outlined text-[20px]" aria-hidden="true">add</span>
+              Registrar control
+            </button>
+            <button type="button" class="text-sm text-on-surface-variant hover:text-danger-text px-2"
+                    (click)="cerrarProceso(f)">
+              Cerrar proceso
+            </button>
+          } @else {
+            <span class="badge-neutral">Proceso cerrado</span>
+          }
+          <button type="button" class="btn-icon" aria-label="Cerrar detalle" (click)="cerrarDetalle()">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Formulario de control -->
+      @if (panelControl()) {
+        <form class="rounded-[10px] bg-surface-container-low p-4 flex flex-col gap-4"
+              [formGroup]="formControl" (ngSubmit)="guardarControl()">
+          <div>
+            <p class="text-sm font-medium text-on-surface">Nuevo control</p>
+            <p class="text-xs text-on-surface-variant mt-0.5">
+              Deja en blanco lo que no midas: en blanco significa "no se tomó", que no es lo mismo
+              que cero.
+            </p>
+          </div>
+
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label for="co-fecha" class="block text-sm font-medium text-on-surface mb-1">Fecha</label>
+              <input id="co-fecha" type="date" class="field-input" formControlName="fecha" />
+            </div>
+            <div>
+              <label for="co-edad" class="block text-sm font-medium text-on-surface mb-1">Edad</label>
+              <input id="co-edad" type="number" min="5" max="120" class="field-input"
+                     formControlName="edad" />
+              @for (e of erroresDe('edad'); track e) {
+                <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+              }
+            </div>
+          </div>
+
+          <div class="grid sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            @for (m of medidas; track m) {
+              <div>
+                <label [for]="'co-' + m" class="block text-xs text-on-surface-variant mb-1">
+                  {{ etiqueta(m) }}
+                </label>
+                <input [id]="'co-' + m" type="text" inputmode="decimal" class="field-input"
+                       [formControlName]="m" />
+                @for (e of erroresDe(m); track e) {
+                  <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+                }
+              </div>
+            }
+          </div>
+
+          <div class="flex flex-wrap gap-2">
+            <button type="submit" class="btn-primary" [disabled]="guardando()">
+              {{ guardando() ? 'Guardando…' : 'Guardar control' }}
+            </button>
+            <button type="button" class="btn-secondary" (click)="panelControl.set(false)">
+              Cancelar
+            </button>
+          </div>
+        </form>
+      }
+
+      <!-- Comparativa -->
+      @if (cargandoComparativa()) {
+        <p class="text-sm text-on-surface-variant">Calculando…</p>
+      } @else if (comparativa(); as c) {
+        @if (c.controles.length === 0) {
+          <div class="py-8 text-center">
+            <p class="text-on-surface">Todavía no hay ningún control.</p>
+            <p class="text-sm text-on-surface-variant mt-1">
+              Registra el primero para tener punto de partida.
+            </p>
+          </div>
+        } @else {
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-surface-container-highest/50 text-left">
+                  <th class="px-3 py-2.5 text-label-sm uppercase tracking-wider text-on-surface-variant">
+                    Medida
+                  </th>
+                  @for (ctrl of c.controles; track ctrl.id) {
+                    <th class="px-3 py-2.5 text-label-sm uppercase tracking-wider text-on-surface-variant text-right whitespace-nowrap">
+                      #{{ ctrl.numero_control }}
+                      <span class="block font-normal normal-case tracking-normal text-[11px]">
+                        {{ fecha(ctrl.fecha) }}
+                      </span>
+                    </th>
+                  }
+                  <th class="px-3 py-2.5 text-label-sm uppercase tracking-wider text-on-surface-variant text-right">
+                    Cambio
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-outline-variant">
+                @for (fila of c.filas; track fila.medida) {
+                  <tr>
+                    <td class="px-3 py-2 text-on-surface whitespace-nowrap">
+                      {{ etiqueta(fila.medida) }}
+                    </td>
+                    @for (valor of fila.valores; track $index) {
+                      <td class="px-3 py-2 text-right"
+                          [class]="valor === null ? 'text-on-surface-variant' : 'text-on-surface'">
+                        {{ valor ?? '—' }}
+                      </td>
+                    }
+                    <td class="px-3 py-2 text-right font-medium text-on-surface whitespace-nowrap">
+                      {{ flecha(fila.diferencia) }} {{ diferenciaTexto(fila.diferencia) }}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <p class="text-xs text-on-surface-variant">
+            El cambio se mide entre la primera y la última vez que se tomó cada medida, saltando
+            los controles donde no se midió. No se pinta de verde ni de rojo a propósito: bajar de
+            abdomen suele buscarse, bajar de brazos rara vez, y el objetivo lo pone cada cliente.
+          </p>
+        }
+      }
+    </section>
+  }
+
+  <!-- Listado de fichas -->
+  <div class="card-base overflow-hidden">
+    <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-outline-variant">
+      <p class="text-sm text-on-surface-variant">
+        {{ fichas().length }} {{ fichas().length === 1 ? 'proceso' : 'procesos' }}
+      </p>
+      <label class="inline-flex items-center gap-2 text-sm text-on-surface-variant cursor-pointer">
+        <input type="checkbox" class="size-4" [checked]="verCerradas()" (change)="alternarCerradas()" />
+        Ver también los cerrados
+      </label>
+    </div>
+
+    @if (cargando()) {
+      <p class="px-4 py-8 text-center text-sm text-on-surface-variant">Cargando…</p>
+    } @else if (fichas().length === 0) {
+      <div class="px-4 py-10 text-center">
+        <span class="material-symbols-outlined text-[40px] text-on-surface-variant" aria-hidden="true">
+          straighten
+        </span>
+        <p class="text-on-surface mt-2">No hay procesos de medidas.</p>
+        <p class="text-sm text-on-surface-variant mt-1">
+          Abre uno para empezar a llevar el seguimiento corporal de un cliente.
+        </p>
+      </div>
+    } @else {
+      <div class="divide-y divide-outline-variant">
+        @for (f of fichas(); track f.id) {
+          <button
+            type="button"
+            class="w-full text-left p-4 flex flex-wrap items-center justify-between gap-3 transition-colors hover:bg-surface-container-low"
+            [class]="fichaAbierta()?.id === f.id ? 'bg-primary-container/20' : ''"
+            (click)="seleccionar(f)"
+          >
+            <div class="min-w-0">
+              <p class="text-on-surface font-medium">
+                {{ f.cliente_nombre }}
+                @if (!f.activa) {
+                  <span class="badge-neutral ml-1">Cerrado</span>
+                }
+              </p>
+              <p class="text-xs text-on-surface-variant">
+                Desde {{ fecha(f.fecha_inicio) }} ·
+                {{ f.controles.length }} {{ f.controles.length === 1 ? 'control' : 'controles' }} ·
+                {{ f.entrenador_nombre }}
+              </p>
+            </div>
+            <span class="material-symbols-outlined text-on-surface-variant shrink-0" aria-hidden="true">
+              chevron_right
+            </span>
+          </button>
+        }
+      </div>
+    }
+  </div>
+</div>

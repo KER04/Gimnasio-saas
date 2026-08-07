@@ -134,6 +134,15 @@ export const routes: Routes = [
         loadComponent: () => import('./features/caja/caja').then((m) => m.CajaMovimientos),
       },
       {
+        path: 'entrenamiento',
+        loadComponent: () =>
+          import('./features/entrenamiento/entrenamiento').then((m) => m.Entrenamiento),
+      },
+      {
+        path: 'medidas',
+        loadComponent: () => import('./features/medidas/medidas').then((m) => m.Medidas),
+      },
+      {
         path: 'sedes',
         loadComponent: () => import('./features/sedes/sedes').then((m) => m.SedesGestion),
       },
