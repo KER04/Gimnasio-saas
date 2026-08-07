@@ -23,7 +23,7 @@ from apps.clientes.models import Cliente
 from apps.core.tenant import tenant_context
 from apps.inventario.models import CategoriaProducto, MovimientoInventario, Producto
 from apps.membresias.models import Plan
-from apps.organizacion.models import Permiso, Rol, RolPermiso, SecuenciaComprobante, Sede, Usuario
+from apps.organizacion.models import Permiso, Rol, RolPermiso, SecuenciaComprobante, Sede, Usuario, UsuarioSede
 from apps.plataforma.models import Tenant
 from apps.ventas.models import CategoriaIngreso
 
@@ -116,6 +116,18 @@ def crear_escenario_pos(subdominio, sufijo, using='default'):
             correo=f'recepcion.{subdominio}@example.com', nombre=f'Recepción {sufijo}',
             tenant=tenant, rol=rol_recepcion, password=PASSWORD,
         )
+
+        # Ambos trabajan en `sede`, como cualquier usuario real: el alta de un
+        # gimnasio (`aprovisionar_tenant`) también asigna al administrador a
+        # su sede inicial.
+        #
+        # Es imprescindible desde que la lectura se acota por sede
+        # (`apps.core.sedes`): un usuario sin ninguna sede asignada no ve
+        # ventas ni informes, y estas pruebas se quedarían comprobando ceros.
+        UsuarioSede.objects.using(using).bulk_create([
+            UsuarioSede(usuario=usuario_admin, sede=sede, tenant=tenant),
+            UsuarioSede(usuario=usuario_recepcion, sede=sede, tenant=tenant),
+        ])
 
         cliente = Cliente.objects.using(using).create(
             tenant=tenant, sede_origen=sede, nombre=f'Cliente {sufijo}',

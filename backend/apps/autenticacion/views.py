@@ -357,7 +357,6 @@ class MeView(APIView):
 
     def get(self, request):
         from apps.core.permissions import _codigos_permiso_del_rol
-        from apps.organizacion.models import UsuarioSede
 
         usuario = request.user
         datos = dict(UsuarioSerializer(usuario).data)
@@ -365,11 +364,26 @@ class MeView(APIView):
         rol = usuario.rol
         tenant = usuario.tenant
 
+        # Las sedes que este usuario puede VER, que no siempre son en las que
+        # trabaja: el dueño (`config.sedes`) ve el gimnasio entero aunque solo
+        # esté asignado a la sede inicial. Si aquí se devolvieran solo sus
+        # asignaciones, el selector de los informes le ofrecería una sola sede
+        # mientras el backend le permite consultarlas todas.
+        #
+        # Es la MISMA regla que aplica `apps.core.sedes` al acotar la lectura:
+        # dos fuentes distintas acabarían discrepando.
+        from apps.core.sedes import sedes_visibles
+        from apps.organizacion.models import Sede
+
+        permitidas = sedes_visibles(request)
+        consulta = (
+            Sede.objects.filter(activa=True)
+            if permitidas is None
+            else Sede.objects.filter(id__in=permitidas)
+        )
         sedes = [
-            {'id': asignacion.sede_id, 'nombre': asignacion.sede.nombre}
-            for asignacion in (
-                UsuarioSede.objects.filter(usuario=usuario).select_related('sede')
-            )
+            {'id': sede.id, 'nombre': sede.nombre}
+            for sede in consulta.order_by('nombre')
         ]
 
         datos.update({

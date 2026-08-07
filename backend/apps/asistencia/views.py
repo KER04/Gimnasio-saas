@@ -19,6 +19,7 @@ from apps.auditoria.models import VistaMembresiaEstado, VistaVentaSaldo
 from apps.clientes.models import Cliente
 from apps.clientes.serializers import ClienteResumenSerializer, MembresiaEstadoSerializer
 from apps.core.permissions import TienePermiso
+from apps.core.sedes import acotar_por_sede
 
 from .models import Asistencia
 from .serializers import AsistenciaInputSerializer, AsistenciaSerializer
@@ -54,15 +55,15 @@ class AsistenciaViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, viewsets
             Asistencia.objects.select_related('cliente', 'sede', 'autorizado_por', 'venta')
             .order_by('-fecha_hora')
         )
+        # Acotado a las sedes del usuario. Sustituye al filtro ``?sede=``
+        # que había aquí: aquel dejaba pasar cualquier sede del gimnasio,
+        # este solo las del usuario y rechaza el resto. Ver ``apps.core.sedes``.
+        qs = acotar_por_sede(self.request, qs)
         params = self.request.query_params
 
         cliente_id = params.get('cliente')
         if cliente_id:
             qs = qs.filter(cliente_id=cliente_id)
-
-        sede_id = params.get('sede')
-        if sede_id:
-            qs = qs.filter(sede_id=sede_id)
 
         desde = params.get('desde')
         if desde:

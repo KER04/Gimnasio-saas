@@ -48,6 +48,7 @@ from rest_framework.views import APIView
 from apps.auditoria.models import VistaCorteDiario, VistaVentaSaldo
 from apps.clientes.models import Cliente
 from apps.core.permissions import TienePermiso
+from apps.core.sedes import acotar_por_sede, sedes_visibles
 from apps.inventario.models import StockSede
 from apps.ventas.models import DetalleVenta, Gasto, Pago, Venta
 
@@ -124,11 +125,10 @@ class ReporteVentasView(APIView):
     def get(self, request):
         desde, hasta = _rango(request)
         zona = _zona_del_gimnasio(request)
-        sede = request.query_params.get('sede')
 
-        ventas = Venta.objects.exclude(estado=Venta.EstadoVenta.ANULADA)
-        if sede:
-            ventas = ventas.filter(sede_id=sede)
+        ventas = acotar_por_sede(
+            request, Venta.objects.exclude(estado=Venta.EstadoVenta.ANULADA),
+        )
         ventas = _filtrar_fechas(ventas, 'fecha_hora', desde, hasta, zona)
 
         agregado = ventas.aggregate(
@@ -142,8 +142,7 @@ class ReporteVentasView(APIView):
         pagos = Pago.objects.filter(anulado=False).exclude(
             venta__estado=Venta.EstadoVenta.ANULADA,
         )
-        if sede:
-            pagos = pagos.filter(venta__sede_id=sede)
+        pagos = acotar_por_sede(request, pagos, campo='venta__sede_id')
         pagos = _filtrar_fechas(pagos, 'fecha_hora', desde, hasta, zona)
         cobrado = pagos.aggregate(total=Coalesce(Sum('monto'), _CERO))['total']
 
@@ -186,12 +185,9 @@ class ReporteCajaView(APIView):
         # Sin `zona` a propósito: `v_corte_diario` ya agrupa por la fecha
         # convertida a la del gimnasio, y aquí se filtra sobre esa columna
         # DATE ya resuelta.
-        sede = request.query_params.get('sede')
         agrupar = request.query_params.get('agrupar', 'dia')
 
-        qs = VistaCorteDiario.objects.all()
-        if sede:
-            qs = qs.filter(sede_id=sede)
+        qs = acotar_por_sede(request, VistaCorteDiario.objects.all())
         if desde:
             qs = qs.filter(fecha__gte=desde)
         if hasta:
@@ -282,11 +278,12 @@ class ReporteUtilidadView(APIView):
     def get(self, request):
         desde, hasta = _rango(request)
         zona = _zona_del_gimnasio(request)
-        sede = request.query_params.get('sede')
 
-        lineas = DetalleVenta.objects.exclude(venta__estado=Venta.EstadoVenta.ANULADA)
-        if sede:
-            lineas = lineas.filter(venta__sede_id=sede)
+        lineas = acotar_por_sede(
+            request,
+            DetalleVenta.objects.exclude(venta__estado=Venta.EstadoVenta.ANULADA),
+            campo='venta__sede_id',
+        )
         lineas = _filtrar_fechas(lineas, 'venta__fecha_hora', desde, hasta, zona)
 
         #: Costo de la línea. `total_linea` ya viene multiplicado por la
@@ -327,9 +324,7 @@ class ReporteUtilidadView(APIView):
             ingresos=Coalesce(Sum('total_linea'), _CERO),
         )
 
-        gastos = Gasto.objects.all()
-        if sede:
-            gastos = gastos.filter(sede_id=sede)
+        gastos = acotar_por_sede(request, Gasto.objects.all())
         if desde:
             gastos = gastos.filter(fecha__gte=desde)
         if hasta:
@@ -341,9 +336,7 @@ class ReporteUtilidadView(APIView):
         # Cuánto de lo vendido EN ESTE PERIODO sigue sin cobrar. No se reparte
         # entre productos y planes: un pago parcial no se imputa a líneas
         # concretas, así que atribuirlo exigiría inventarse un prorrateo.
-        saldos = VistaVentaSaldo.objects.filter(saldo__gt=0)
-        if sede:
-            saldos = saldos.filter(sede_id=sede)
+        saldos = acotar_por_sede(request, VistaVentaSaldo.objects.filter(saldo__gt=0))
         saldos = _filtrar_fechas(saldos, 'fecha_hora', desde, hasta, zona)
         pendiente = saldos.aggregate(total=Coalesce(Sum('saldo'), _CERO))['total']
 
@@ -387,11 +380,8 @@ class ReporteCarteraView(APIView):
     permiso_requerido = 'reportes.ver'
 
     def get(self, request):
-        sede = request.query_params.get('sede')
 
-        qs = VistaVentaSaldo.objects.filter(saldo__gt=0)
-        if sede:
-            qs = qs.filter(sede_id=sede)
+        qs = acotar_por_sede(request, VistaVentaSaldo.objects.filter(saldo__gt=0))
         filas = list(qs.order_by('fecha_hora'))
 
         # Nombres y consecutivos de una sola consulta cada uno: el listado
@@ -462,14 +452,12 @@ class ReporteProductosView(APIView):
     def get(self, request):
         desde, hasta = _rango(request)
         zona = _zona_del_gimnasio(request)
-        sede = request.query_params.get('sede')
 
         lineas = DetalleVenta.objects.filter(
             tipo_item=DetalleVenta.TipoItemVenta.PRODUCTO,
             producto__isnull=False,
         ).exclude(venta__estado=Venta.EstadoVenta.ANULADA)
-        if sede:
-            lineas = lineas.filter(venta__sede_id=sede)
+        lineas = acotar_por_sede(request, lineas, campo='venta__sede_id')
         lineas = _filtrar_fechas(lineas, 'venta__fecha_hora', desde, hasta, zona)
 
         vendido = (
@@ -484,9 +472,7 @@ class ReporteProductosView(APIView):
         # Existencias actuales por producto. Es el saldo de HOY, no el del
         # final del rango: el kardex permitiría reconstruir el histórico, pero
         # lo que se quiere saber aquí es qué reponer ahora.
-        stock_qs = StockSede.objects.all()
-        if sede:
-            stock_qs = stock_qs.filter(sede_id=sede)
+        stock_qs = acotar_por_sede(request, StockSede.objects.all())
         stock_por_producto = {
             fila['producto_id']: fila['cantidad']
             for fila in stock_qs.values('producto_id').annotate(cantidad=Coalesce(Sum('cantidad'), _CERO))

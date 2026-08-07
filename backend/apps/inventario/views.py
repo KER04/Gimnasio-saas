@@ -13,6 +13,7 @@ from rest_framework import mixins, status, viewsets
 from rest_framework.response import Response
 
 from apps.core.permissions import TienePermiso
+from apps.core.sedes import acotar_por_sede
 from apps.organizacion.models import Sede
 
 from .models import CategoriaProducto, MovimientoInventario, Producto
@@ -188,15 +189,15 @@ class MovimientoInventarioViewSet(
             .select_related('producto', 'sede', 'usuario')
             .order_by('-fecha_hora')
         )
+        # Acotado a las sedes del usuario, y valida el `?sede=` que venga:
+        # el libro de movimientos dice qué entró y salió de cada local, y eso
+        # es información de ese local. Ver `apps.core.sedes`.
+        qs = acotar_por_sede(self.request, qs)
         params = self.request.query_params
 
         producto = params.get('producto')
         if producto:
             qs = qs.filter(producto_id=producto)
-
-        sede = params.get('sede')
-        if sede:
-            qs = qs.filter(sede_id=sede)
 
         tipo = params.get('tipo')
         if tipo:

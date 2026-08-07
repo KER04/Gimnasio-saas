@@ -10,6 +10,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.core.permissions import TienePermiso
+from apps.core.sedes import acotar_por_sede
 
 from .models import Venta
 from .serializers import (
@@ -65,6 +66,9 @@ class VentaViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.Ge
             .prefetch_related('detalles', 'pagos')
             .order_by('-fecha_hora')
         )
+        # Acotado a las sedes del usuario: sin esto, un recepcionista veía
+        # las ventas de los demás locales. Ver ``apps.core.sedes``.
+        qs = acotar_por_sede(self.request, qs)
         params = self.request.query_params
 
         estado = params.get('estado')
