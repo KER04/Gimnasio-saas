@@ -132,6 +132,49 @@ RLS y no debes abrir el servicio al público**.
 
 ---
 
+## 4-bis. Desplegar un cambio de base de datos
+
+**`git push` NO aplica las migraciones.** Viajan en el repositorio como
+archivos, pero el Start Command solo arranca `gunicorn`: nadie las ejecuta
+por su cuenta. Si despliegas código que espera una columna nueva sin haber
+migrado, la aplicación arranca y falla en la primera petición que la toque.
+
+La forma robusta es el **Pre-deploy Command** de Railway (Settings → Deploy),
+que corre ANTES de que la versión nueva empiece a recibir tráfico:
+
+```
+python manage.py migrate --database=ddl
+```
+
+`--database=ddl` no es opcional: las migraciones crean tablas, políticas RLS
+y vistas, y eso exige el superusuario. La conexión de la aplicación
+(`keradmin`) no tiene permisos para hacerlo, y debe seguir sin tenerlos.
+
+### Comprobar qué hay aplicado
+
+```bash
+python manage.py showmigrations
+```
+
+Una migración con `[ ]` está en el código pero no en la base.
+
+### Tablas nuevas y permisos
+
+Si una migración futura crea una tabla, `keradmin` necesita permisos sobre
+ella o la aplicación la verá como inexistente. El `ALTER DEFAULT PRIVILEGES`
+del paso 4 ya lo cubre para todo lo que se cree DESPUÉS de haberlo
+ejecutado; si lo saltaste, hay que repetir los `GRANT` tras cada migración
+que añada tablas.
+
+### Antes de migrar en producción
+
+Las migraciones que solo AÑADEN cosas (una columna nueva que admite NULL,
+una tabla) son seguras y reversibles. Las que borran o cambian el tipo de una
+columna pueden perder datos y no se deshacen con un `git revert`: ahí conviene
+un respaldo antes. Railway los ofrece en el servicio de Postgres.
+
+---
+
 ## 5. Crear tu cuenta y el primer gimnasio
 
 ```bash
