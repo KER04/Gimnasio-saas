@@ -373,7 +373,7 @@ class MeView(APIView):
         # Es la MISMA regla que aplica `apps.core.sedes` al acotar la lectura:
         # dos fuentes distintas acabarían discrepando.
         from apps.core.sedes import sedes_visibles
-        from apps.organizacion.models import Sede
+        from apps.organizacion.models import Sede, UsuarioSede
 
         permitidas = sedes_visibles(request)
         consulta = (
@@ -381,9 +381,24 @@ class MeView(APIView):
             if permitidas is None
             else Sede.objects.filter(id__in=permitidas)
         )
+
+        # ORDEN CRÍTICO: primero las sedes donde el usuario TRABAJA
+        # (`usuarios_sedes`), después el resto.
+        #
+        # El frontend toma `sedes[0]` como sede activa, y de ella dependen el
+        # punto de venta, la asistencia y el inventario. Ordenar solo por
+        # nombre hacía que el dueño —que ve todas— entrara a la primera
+        # alfabéticamente: con "Sede Principal" y "sede norte", aterrizaba en
+        # Norte y vendía allí sin enterarse.
+        propias = set(
+            UsuarioSede.objects.filter(usuario=usuario).values_list('sede_id', flat=True),
+        )
         sedes = [
             {'id': sede.id, 'nombre': sede.nombre}
-            for sede in consulta.order_by('nombre')
+            for sede in sorted(
+                consulta,
+                key=lambda s: (0 if s.id in propias else 1, s.nombre.lower()),
+            )
         ]
 
         datos.update({

@@ -154,6 +154,32 @@ class AislamientoEntreSedesTestCase(TestCase):
         self.assertEqual(respuesta.status_code, 200, respuesta.content)
         self.assertEqual(Decimal(respuesta.json()['facturado']), Decimal('900'))
 
+    def test_la_sesion_pone_primero_la_sede_donde_trabaja(self):
+        """El frontend toma `sedes[0]` como sede ACTIVA, y de ella dependen el
+        punto de venta, la asistencia y el inventario.
+
+        Ordenar solo por nombre hacía que el dueño —que ve todas— aterrizara
+        en la primera alfabéticamente: con "Norte" y "Sur", entraba en Norte
+        aunque trabajara en Sur, y vendía allí sin enterarse.
+        """
+        with tenant_context(self.tenant.id):
+            UsuarioSede.objects.create(
+                usuario=self.duenio, sede=self.sur, tenant=self.tenant,
+            )
+
+        respuesta = self._get('/api/auth/me/', self.duenio)
+
+        sedes = respuesta.json()['sedes']
+        self.assertEqual(sedes[0]['nombre'], 'Sur', 'La primera debe ser donde trabaja.')
+        # Y sigue viéndolas todas: el dueño no pierde el consolidado.
+        self.assertCountEqual([s['nombre'] for s in sedes], ['Norte', 'Sur'])
+
+    def test_quien_solo_tiene_una_sede_la_recibe_como_activa(self):
+        respuesta = self._get('/api/auth/me/', self.recepcion)
+
+        sedes = respuesta.json()['sedes']
+        self.assertEqual([s['nombre'] for s in sedes], ['Norte'])
+
     def test_los_clientes_son_del_gimnasio_y_no_de_una_sede(self):
         """Un socio puede entrenar en cualquier sede sin volver a darse de
         alta: `sede_origen` solo registra dónde se inscribió."""
