@@ -26,6 +26,7 @@ from rest_framework.decorators import action
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 
+from apps.core.fechas import hoy_de_la_peticion
 from apps.core.permissions import TienePermiso
 
 from .models import (
@@ -143,6 +144,8 @@ class RutinaViewSet(viewsets.ModelViewSet):
                 # El entrenador es QUIEN LA CREA, no un id del cuerpo: si
                 # viniera de fuera se podrían atribuir rutinas a otro.
                 entrenador=request.user,
+                **({} if entrada.validated_data.get('fecha_inicio')
+                   else {'fecha_inicio': hoy_de_la_peticion(request)}),
             )
             self._guardar_dias(rutina, dias)
 
@@ -229,7 +232,15 @@ class FichaMedidasViewSet(
         return qs.order_by('-fecha_inicio', '-id')
 
     def perform_create(self, serializer):
-        serializer.save(tenant_id=self.request.tenant_id, entrenador=self.request.user)
+        serializer.save(
+            tenant_id=self.request.tenant_id,
+            entrenador=self.request.user,
+            # La fecha se manda EXPLÍCITA en la zona del gimnasio. Si se
+            # dejara al `db_default=CURRENT_DATE`, una ficha abierta a las
+            # ocho de la noche diría que empezó mañana (ver `apps.core.fechas`).
+            **({} if serializer.validated_data.get('fecha_inicio')
+               else {'fecha_inicio': hoy_de_la_peticion(self.request)}),
+        )
 
     @action(detail=True, methods=['post'])
     def cerrar(self, request, pk=None):
@@ -263,6 +274,8 @@ class FichaMedidasViewSet(
                 ficha_medida=ficha,
                 numero_control=(ultimo.numero_control + 1) if ultimo else 1,
                 registrado_por=request.user,
+                **({} if entrada.validated_data.get('fecha')
+                   else {'fecha': hoy_de_la_peticion(request)}),
             )
 
         return Response(

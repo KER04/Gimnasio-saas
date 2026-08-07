@@ -25,6 +25,7 @@ from datetime import date
 
 from django.db import transaction
 
+from apps.core.fechas import hoy_del_gimnasio
 from apps.core.tenant import tenant_context
 from apps.organizacion.models import Sede
 
@@ -73,9 +74,11 @@ def emitir_factura(suscripcion, hoy=None):
     del comando, y un corte avanzado sin factura se saltaría un cobro.
 
     ``hoy`` se puede inyectar para poder probar el comportamiento en fechas
-    concretas sin tocar el reloj del sistema.
+    concretas sin tocar el reloj del sistema. Cuando no se indica, se toma el
+    día EN LA ZONA DEL GIMNASIO: el corte de un cliente en otro huso no debe
+    depender de dónde esté el servidor.
     """
-    hoy = hoy or date.today()
+    hoy = hoy or hoy_del_gimnasio(suscripcion.tenant)
 
     if suscripcion.estado == Suscripcion.EstadoSuscripcion.CANCELADA:
         raise FacturacionError('La suscripción está cancelada: no se puede facturar.')
@@ -125,7 +128,7 @@ def emitir_factura(suscripcion, hoy=None):
 
 def facturas_vencidas(suscripcion, hoy=None):
     """Facturas emitidas cuyo plazo de gracia ya pasó y siguen sin pagar."""
-    hoy = hoy or date.today()
+    hoy = hoy or hoy_del_gimnasio(suscripcion.tenant)
     vencidas = []
     for factura in suscripcion.facturas.filter(
         estado=FacturaSuscripcion.EstadoFactura.EMITIDA,
@@ -175,7 +178,7 @@ def marcar_pagada(factura, fecha_pago=None):
         raise FacturacionError('Esa factura ya estaba pagada.')
 
     factura.estado = FacturaSuscripcion.EstadoFactura.PAGADA
-    factura.fecha_pago = fecha_pago or date.today()
+    factura.fecha_pago = fecha_pago or hoy_del_gimnasio(factura.suscripcion.tenant)
     factura.save(update_fields=['estado', 'fecha_pago'])
 
     # Cobrar puede sacar al cliente de la mora, y esperar a la siguiente

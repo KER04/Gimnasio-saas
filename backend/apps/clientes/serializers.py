@@ -15,6 +15,7 @@ Estructura:
 from django.db import IntegrityError, transaction
 from rest_framework import serializers
 
+from apps.core.fechas import hoy_de_la_peticion
 from apps.organizacion.models import Sede, UsuarioSede
 from apps.ventas.models import DetalleVenta, Pago
 
@@ -203,6 +204,12 @@ class ClienteSerializer(serializers.ModelSerializer):
                 cliente = Cliente.objects.create(
                     tenant=request.tenant,
                     sede_origen=sede_origen,
+                    # Explícita y en la zona del gimnasio. Con el
+                    # `db_default=CURRENT_DATE` del modelo, un cliente
+                    # registrado a las ocho de la noche aparecía dado de alta
+                    # MAÑANA: `CURRENT_DATE` se evalúa en la conexión, que
+                    # Django fuerza a UTC (ver `apps.core.fechas`).
+                    fecha_registro=hoy_de_la_peticion(request),
                     **validated_data,
                 )
         except IntegrityError as exc:

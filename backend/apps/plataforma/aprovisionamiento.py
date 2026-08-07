@@ -25,6 +25,7 @@ import string
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.utils import timezone
 
 from apps.core.tenant import tenant_context
 from apps.entrenamiento.models import GrupoMuscular
@@ -190,6 +191,12 @@ def aprovisionar_tenant(
             telefono=telefono,
             ciudad=ciudad,
             nit=nit,
+            # Explícita: el `db_default=CURRENT_DATE` se evalúa en la
+            # conexión, que va en UTC, y de noche daría la fecha de mañana
+            # (ver `apps.core.fechas`). Aquí no se puede usar la zona del
+            # gimnasio porque todavía no existe, así que se usa la del
+            # servidor -- que es también la que el tenant tendrá por defecto.
+            fecha_alta=timezone.localdate(),
         )
 
         # A partir de aquí todo son tablas con RLS: sin el contexto fijado,
