@@ -6,17 +6,22 @@
         Rutinas de los clientes y el catálogo de ejercicios del gimnasio.
       </p>
     </div>
-    @if (pestana() === 'rutinas') {
+    <!-- Los dos siempre visibles: antes el de ejercicios solo aparecía si ya
+         estabas en su pestaña, y desde Rutinas no había forma de llegar. -->
+    <div class="flex flex-wrap gap-2">
       <button type="button" class="btn-inverted" (click)="abrirAltaRutina()">
         <span class="material-symbols-outlined" aria-hidden="true">add</span>
         Nueva rutina
       </button>
-    } @else {
-      <button type="button" class="btn-inverted" (click)="abrirAltaEjercicio()">
-        <span class="material-symbols-outlined" aria-hidden="true">add</span>
+      <button
+        type="button"
+        class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border-2 border-white/40 px-5 text-[0.9375rem] font-semibold text-on-primary transition-colors hover:bg-white/10"
+        (click)="abrirAltaEjercicio()"
+      >
+        <span class="material-symbols-outlined" aria-hidden="true">fitness_center</span>
         Nuevo ejercicio
       </button>
-    }
+    </div>
   </div>
 
   @if (error()) {
@@ -142,10 +147,16 @@
       }
 
       @if (ejerciciosActivos().length === 0) {
-        <p class="rounded-[10px] bg-warning-bg text-warning-text text-sm px-3 py-2.5">
-          El catálogo está vacío. Crea ejercicios en la pestaña <strong>Ejercicios</strong> antes de
-          armar una rutina.
-        </p>
+        <div class="rounded-[10px] bg-warning-bg text-warning-text px-3 py-2.5 flex flex-wrap items-center justify-between gap-3">
+          <p class="text-sm">
+            El catálogo está vacío: una rutina se arma con ejercicios, así que primero hay que
+            crearlos.
+          </p>
+          <button type="button" class="btn-primary shrink-0" (click)="abrirAltaEjercicio()">
+            <span class="material-symbols-outlined text-[20px]" aria-hidden="true">add</span>
+            Crear ejercicio
+          </button>
+        </div>
       }
 
       <!-- Días -->
@@ -308,9 +319,25 @@
             exercise
           </span>
           <p class="text-on-surface mt-2">Todavía no hay rutinas.</p>
-          <p class="text-sm text-on-surface-variant mt-1">
-            Crea primero algunos ejercicios y luego arma la rutina de un cliente.
+          <p class="text-sm text-on-surface-variant mt-1 mb-3">
+            Una rutina se arma con ejercicios del catálogo, así que ese es el primer paso.
           </p>
+          <div class="flex flex-wrap justify-center gap-2">
+            @if (ejerciciosActivos().length === 0) {
+              <button type="button" class="btn-primary" (click)="abrirAltaEjercicio()">
+                <span class="material-symbols-outlined text-[20px]" aria-hidden="true">add</span>
+                Crear el primer ejercicio
+              </button>
+            } @else {
+              <button type="button" class="btn-primary" (click)="abrirAltaRutina()">
+                <span class="material-symbols-outlined text-[20px]" aria-hidden="true">add</span>
+                Armar una rutina
+              </button>
+              <button type="button" class="btn-secondary" (click)="abrirAltaEjercicio()">
+                Añadir más ejercicios
+              </button>
+            }
+          </div>
         </div>
       } @else {
         <div class="divide-y divide-outline-variant">
@@ -399,9 +426,13 @@
             fitness_center
           </span>
           <p class="text-on-surface mt-2">El catálogo está vacío.</p>
-          <p class="text-sm text-on-surface-variant mt-1">
+          <p class="text-sm text-on-surface-variant mt-1 mb-3">
             Cada gimnasio arma el suyo. Empieza por los básicos de cada grupo muscular.
           </p>
+          <button type="button" class="btn-primary" (click)="abrirAltaEjercicio()">
+            <span class="material-symbols-outlined text-[20px]" aria-hidden="true">add</span>
+            Crear el primer ejercicio
+          </button>
         </div>
       } @else {
         <div class="p-4 flex flex-col gap-5">

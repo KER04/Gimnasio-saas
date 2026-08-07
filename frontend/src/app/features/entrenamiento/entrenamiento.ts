@@ -132,7 +132,16 @@ export class Entrenamiento {
 
   // --- Catálogo de ejercicios ------------------------------------------
 
+  /**
+   * Abre el formulario de ejercicio, cambiando a su pestaña si hace falta.
+   *
+   * Se puede llamar desde la pestaña de Rutinas: el catálogo vacío es un
+   * callejón sin salida si la única forma de crear un ejercicio es haber
+   * cambiado antes de pestaña.
+   */
   protected abrirAltaEjercicio(): void {
+    this.pestana.set('ejercicios');
+    this.panelRutina.set(false);
     this.ejercicioEditando.set(null);
     this.erroresEjercicio.set({});
     this.formEjercicio.reset({ grupo_muscular: '' });
