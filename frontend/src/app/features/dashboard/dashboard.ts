@@ -49,6 +49,13 @@ export class Dashboard {
   protected readonly nombreUsuario = computed(() => this.authService.sesion()?.nombre ?? '');
   private readonly sedeId = computed(() => this.authService.sedeActual()?.id ?? null);
 
+  /** Solo se nombra la sede si el gimnasio tiene más de una: con una sola,
+   * decir "en Sede Principal" es ruido. */
+  protected readonly nombreSede = computed(() => {
+    const sedes = this.authService.sesion()?.sedes ?? [];
+    return sedes.length > 1 ? (this.authService.sedeActual()?.nombre ?? null) : null;
+  });
+
   protected readonly puedeVerReportes = computed(() => this.authService.tienePermiso('reportes.ver'));
   protected readonly puedeVerInventario = computed(() => this.authService.tienePermiso('inventario.ver'));
 
@@ -74,8 +81,14 @@ export class Dashboard {
     // `catchError` por petición y no uno global: si un informe falla, su
     // tarjeta queda vacía pero las demás siguen mostrándose.
     forkJoin({
+      // Acotado a TU sede, igual que las existencias de más abajo: "cobrado
+      // hoy" es la caja que tienes delante, no la suma de todos los locales.
+      // Sin esto, un gimnasio con dos sedes veía aquí el total de las dos
+      // mientras la tarjeta daba a entender que era la suya.
       caja: this.puedeVerReportes()
-        ? this.reportesService.caja({ desde: hoy, hasta: hoy }).pipe(catchError(() => of(null)))
+        ? this.reportesService
+            .caja({ desde: hoy, hasta: hoy, sede: sede ?? undefined })
+            .pipe(catchError(() => of(null)))
         : of(null),
       cartera: this.puedeVerReportes()
         ? this.reportesService.cartera().pipe(catchError(() => of(null)))

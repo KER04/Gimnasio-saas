@@ -17,7 +17,9 @@
         <a routerLink="/reportes" class="card-base p-5 transition-colors hover:bg-surface-container-low">
           <p class="text-label-sm uppercase tracking-wider text-on-surface-variant">Caja de hoy</p>
           <p class="mt-1 font-display text-2xl font-bold text-success-text">{{ dinero(cajaHoy()) }}</p>
-          <p class="mt-1 text-xs text-on-surface-variant">Dinero recibido hoy</p>
+          <p class="mt-1 text-xs text-on-surface-variant">
+            Dinero recibido hoy@if (nombreSede(); as sede) { en {{ sede }}}
+          </p>
         </a>
 
         <a routerLink="/reportes" class="card-base p-5 transition-colors hover:bg-surface-container-low">
@@ -27,7 +29,7 @@
             [class]="(cartera()?.totales?.saldo ?? '0') === '0.00' ? 'text-on-surface' : 'text-warning-text'"
           >{{ dinero(cartera()?.totales?.saldo ?? '0') }}</p>
           <p class="mt-1 text-xs text-on-surface-variant">
-            {{ cartera()?.totales?.clientes ?? 0 }} cliente(s) con saldo
+            {{ cartera()?.totales?.clientes ?? 0 }} cliente(s) con saldo · todo el gimnasio
           </p>
         </a>
 

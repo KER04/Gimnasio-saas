@@ -46,7 +46,33 @@ export class Reportes {
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
 
-  protected readonly nombreSede = computed(() => this.authService.sedeActual()?.nombre ?? null);
+  /**
+   * Sede sobre la que se calculan los informes. `null` = todas.
+   *
+   * Antes NO existía: la pantalla llamaba a los informes sin filtro, así que
+   * siempre sumaba el gimnasio entero mientras la cabecera enseñaba el nombre
+   * de la sede actual. Con una sola sede daba igual; con dos, hacía imposible
+   * saber cuánto vendió cada local -- que es la primera pregunta de quien
+   * abre la segunda.
+   */
+  protected readonly sedeSeleccionada = signal<number | null>(null);
+
+  /** Las sedes a las que el usuario tiene acceso, de su sesión. */
+  protected readonly sedes = computed(() => this.authService.sesion()?.sedes ?? []);
+
+  /** Con una sola sede el selector no aporta nada: "todas" y "esa" son lo
+   * mismo, y preguntarlo sería pedir una decisión que no existe. */
+  protected readonly hayVariasSedes = computed(() => this.sedes().length > 1);
+
+  /** Qué se está viendo, para la cabecera. Antes decía siempre el nombre de
+   * la sede actual aunque los números fueran de todo el gimnasio. */
+  protected readonly ambito = computed(() => {
+    const id = this.sedeSeleccionada();
+    if (id === null) {
+      return this.hayVariasSedes() ? 'Todas las sedes' : (this.sedes()[0]?.nombre ?? null);
+    }
+    return this.sedes().find((s) => s.id === id)?.nombre ?? null;
+  });
 
   protected readonly desde = this.fb.nonNullable.control(inicioDeMes());
   protected readonly hasta = this.fb.nonNullable.control(hoyISO());
@@ -81,7 +107,8 @@ export class Reportes {
   protected cargar(): void {
     this.cargando.set(true);
     this.error.set(null);
-    const filtros = { desde: this.desde.value, hasta: this.hasta.value };
+    const sede = this.sedeSeleccionada() ?? undefined;
+    const filtros = { desde: this.desde.value, hasta: this.hasta.value, sede };
 
     // Las tres peticiones a la vez: son independientes y encadenarlas solo
     // haría esperar de más.
@@ -90,7 +117,8 @@ export class Reportes {
       caja: this.reportesService.caja(filtros, this.agrupar()),
       productos: this.reportesService.productos(filtros),
       // La cartera NO recibe el rango: la deuda no pertenece a un periodo.
-      cartera: this.reportesService.cartera(),
+      // La sede sí: una deuda se contrajo en un local concreto.
+      cartera: this.reportesService.cartera(sede),
       utilidad: this.puedeVerCostos()
         ? this.reportesService.utilidad(filtros)
         : of(null),
@@ -125,7 +153,14 @@ export class Reportes {
     this.agrupar.set(valor);
     this.cargandoCaja.set(true);
     this.reportesService
-      .caja({ desde: this.desde.value, hasta: this.hasta.value }, valor)
+      .caja(
+        {
+          desde: this.desde.value,
+          hasta: this.hasta.value,
+          sede: this.sedeSeleccionada() ?? undefined,
+        },
+        valor,
+      )
       .subscribe({
         next: (caja) => {
           this.caja.set(caja);
@@ -154,6 +189,11 @@ export class Reportes {
   protected rangoTodo(): void {
     this.desde.setValue('');
     this.hasta.setValue('');
+    this.cargar();
+  }
+
+  protected cambiarSede(valor: string): void {
+    this.sedeSeleccionada.set(valor === '' ? null : Number(valor));
     this.cargar();
   }
 

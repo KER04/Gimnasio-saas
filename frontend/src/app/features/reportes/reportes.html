@@ -3,8 +3,10 @@
     <h1 class="text-headline-lg-mobile sm:text-headline-lg text-on-primary">Reportes</h1>
     <p class="mt-1 text-body-md text-primary-fixed">
       Caja, facturación y productos
-      @if (nombreSede(); as sede) {
-        · {{ sede }}
+      <!-- Lo que se está viendo DE VERDAD. Antes decía siempre el nombre de
+           la sede actual aunque los números fueran del gimnasio entero. -->
+      @if (ambito(); as donde) {
+        · {{ donde }}
       }
     </p>
   </div>
@@ -20,7 +22,22 @@
         <label for="hasta" class="block text-sm font-medium text-on-surface mb-1">Hasta</label>
         <input id="hasta" type="date" class="field-input" [formControl]="hasta" />
       </div>
-      <div class="sm:col-span-2 flex items-end gap-2">
+      <!-- Con una sola sede no se ofrece: "todas" y "esa" serían lo mismo. -->
+      @if (hayVariasSedes()) {
+        <div>
+          <label for="sede" class="block text-sm font-medium text-on-surface mb-1">Sede</label>
+          <select id="sede" class="field-input"
+                  [value]="sedeSeleccionada() ?? ''"
+                  (change)="cambiarSede($any($event.target).value)">
+            <option value="">Todas las sedes</option>
+            @for (s of sedes(); track s.id) {
+              <option [value]="s.id">{{ s.nombre }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      <div class="flex items-end gap-2" [class.sm:col-span-2]="!hayVariasSedes()">
         <button type="button" class="btn-primary" (click)="cargar()">
           <span class="material-symbols-outlined" aria-hidden="true">search</span>
           Consultar
