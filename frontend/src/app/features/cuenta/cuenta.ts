@@ -26,6 +26,18 @@ export class MiCuenta {
   protected readonly nombreRol = this.authService.nombreRol;
   protected readonly nombreSede = computed(() => this.authService.sedeActual()?.nombre ?? null);
 
+  /** Iniciales para el avatar del encabezado. Dos como mucho: con tres deja
+   * de leerse dentro del círculo. */
+  protected readonly iniciales = computed(() => {
+    const nombre = this.sesion()?.nombre ?? '';
+    return nombre
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((parte) => parte[0]?.toUpperCase() ?? '')
+      .join('');
+  });
+
   protected readonly guardando = signal(false);
   protected readonly exito = signal(false);
   protected readonly error = signal<string | null>(null);

@@ -1,100 +1,127 @@
-<div class="flex flex-col gap-5 max-w-2xl">
-  <div class="rounded-xl bg-primary px-5 py-5 sm:px-6">
-    <h1 class="text-headline-lg-mobile sm:text-headline-lg text-on-primary">Mi cuenta</h1>
-    <p class="mt-1 text-body-md text-primary-fixed">
-      Tus datos de acceso y tu contraseña.
-    </p>
+<div class="flex flex-col gap-5">
+  <div class="rounded-xl bg-primary px-5 py-5 sm:px-6 flex flex-wrap items-center gap-4">
+    <span
+      class="flex size-14 shrink-0 items-center justify-center rounded-full bg-on-primary/15 text-lg font-semibold text-on-primary"
+      aria-hidden="true"
+    >{{ iniciales() }}</span>
+    <div class="min-w-0">
+      <h1 class="text-headline-lg-mobile sm:text-headline-lg text-on-primary">Mi cuenta</h1>
+      <p class="mt-1 text-body-md text-primary-fixed">Tus datos de acceso y tu contraseña.</p>
+    </div>
   </div>
 
-  @if (sesion(); as s) {
-    <section class="card-base p-4 sm:p-5 flex flex-col gap-3">
-      <h2 class="text-headline-md text-on-surface">Datos de la sesión</h2>
-      <dl class="grid sm:grid-cols-2 gap-3">
-        <div>
-          <dt class="text-xs text-on-surface-variant">Nombre</dt>
-          <dd class="text-on-surface mt-0.5">{{ s.nombre }}</dd>
-        </div>
-        <div>
-          <dt class="text-xs text-on-surface-variant">Correo</dt>
-          <dd class="text-on-surface mt-0.5 break-all">{{ s.correo }}</dd>
-        </div>
-        <div>
-          <dt class="text-xs text-on-surface-variant">Rol</dt>
-          <dd class="text-on-surface mt-0.5 capitalize">{{ nombreRol() ?? '—' }}</dd>
-        </div>
-        <div>
-          <dt class="text-xs text-on-surface-variant">Sede actual</dt>
-          <dd class="text-on-surface mt-0.5">{{ nombreSede() ?? '—' }}</dd>
-        </div>
-      </dl>
-      <p class="text-xs text-on-surface-variant border-t border-outline-variant pt-3">
-        Para cambiar tu nombre, tu correo o tu rol, pídeselo al administrador del gimnasio.
-      </p>
-    </section>
-  }
+  <!-- Dos columnas en pantalla ancha: la ficha a la izquierda, que es
+       consulta, y el formulario a la derecha, que es la acción. Antes iba
+       todo apilado dentro de un `max-w-2xl` y dejaba media pantalla vacía. -->
+  <div class="grid gap-5 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+    @if (sesion(); as s) {
+      <section class="card-base p-4 sm:p-5 flex flex-col gap-4 self-start">
+        <h2 class="text-headline-md text-on-surface">Datos de la sesión</h2>
 
-  <form class="card-base p-4 sm:p-5 flex flex-col gap-4" [formGroup]="formulario" (ngSubmit)="enviar()">
-    <div>
-      <h2 class="text-headline-md text-on-surface">Cambiar contraseña</h2>
-      <p class="text-sm text-on-surface-variant mt-0.5">
-        Al cambiarla se cerrarán tus sesiones abiertas en otros dispositivos.
-      </p>
-    </div>
+        <dl class="flex flex-col divide-y divide-outline-variant">
+          <div class="flex items-start justify-between gap-3 py-2.5">
+            <dt class="text-sm text-on-surface-variant shrink-0">Nombre</dt>
+            <dd class="text-sm text-on-surface text-right">{{ s.nombre }}</dd>
+          </div>
+          <div class="flex items-start justify-between gap-3 py-2.5">
+            <dt class="text-sm text-on-surface-variant shrink-0">Correo</dt>
+            <dd class="text-sm text-on-surface text-right break-all">{{ s.correo }}</dd>
+          </div>
+          <div class="flex items-center justify-between gap-3 py-2.5">
+            <dt class="text-sm text-on-surface-variant shrink-0">Rol</dt>
+            <dd><span class="badge-neutral capitalize">{{ nombreRol() ?? '—' }}</span></dd>
+          </div>
+          <div class="flex items-start justify-between gap-3 py-2.5">
+            <dt class="text-sm text-on-surface-variant shrink-0">Sede actual</dt>
+            <dd class="text-sm text-on-surface text-right">{{ nombreSede() ?? '—' }}</dd>
+          </div>
+        </dl>
 
-    @if (exito()) {
-      <p class="rounded-[10px] bg-success-bg text-success-text text-sm px-3 py-2" role="status">
-        Contraseña actualizada. Las demás sesiones se cerraron.
-      </p>
-    }
-    @if (error()) {
-      <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2" role="alert">
-        {{ error() }}
-      </p>
+        <p class="text-xs text-on-surface-variant border-t border-outline-variant pt-3">
+          Para cambiar tu nombre, tu correo o tu rol, pídeselo al administrador del gimnasio.
+        </p>
+      </section>
     }
 
-    <div>
-      <label for="actual" class="block text-sm font-medium text-on-surface mb-1">Contraseña actual *</label>
-      <input id="actual" [type]="verPassword() ? 'text' : 'password'" class="field-input"
-             autocomplete="current-password" formControlName="password_actual" />
-      @if (formulario.controls.password_actual.invalid && formulario.controls.password_actual.touched) {
-        <p class="mt-1 text-xs text-danger-text">Escribe tu contraseña actual.</p>
-      }
-      @for (e of erroresDe('password_actual'); track e) {
-        <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
-      }
-    </div>
+    <form class="card-base p-4 sm:p-5 flex flex-col gap-4 self-start" [formGroup]="formulario"
+          (ngSubmit)="enviar()">
+      <div>
+        <h2 class="text-headline-md text-on-surface">Cambiar contraseña</h2>
+        <p class="text-sm text-on-surface-variant mt-0.5">
+          Al cambiarla se cerrarán tus sesiones abiertas en otros dispositivos.
+        </p>
+      </div>
 
-    <div>
-      <label for="nueva" class="block text-sm font-medium text-on-surface mb-1">Contraseña nueva *</label>
-      <input id="nueva" [type]="verPassword() ? 'text' : 'password'" class="field-input"
-             autocomplete="new-password" formControlName="password_nueva" />
-      @if (formulario.controls.password_nueva.invalid && formulario.controls.password_nueva.touched) {
-        <p class="mt-1 text-xs text-danger-text">Escribe la contraseña nueva.</p>
+      @if (exito()) {
+        <p class="rounded-[10px] bg-success-bg text-success-text text-sm px-3 py-2 flex items-start gap-2"
+           role="status">
+          <span class="material-symbols-outlined text-[20px] shrink-0" aria-hidden="true">check_circle</span>
+          <span>Contraseña actualizada. Las demás sesiones se cerraron.</span>
+        </p>
       }
-      @for (e of erroresDe('password_nueva'); track e) {
-        <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+      @if (error()) {
+        <p class="rounded-[10px] bg-danger-bg text-danger-text text-sm px-3 py-2" role="alert">
+          {{ error() }}
+        </p>
       }
-    </div>
 
-    <div>
-      <label for="repetir" class="block text-sm font-medium text-on-surface mb-1">Repite la nueva *</label>
-      <input id="repetir" [type]="verPassword() ? 'text' : 'password'" class="field-input"
-             autocomplete="new-password" formControlName="repetir" />
-      @for (e of erroresDe('repetir'); track e) {
-        <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
-      }
-    </div>
+      <div>
+        <label for="actual" class="block text-sm font-medium text-on-surface mb-1">
+          Contraseña actual *
+        </label>
+        <input id="actual" [type]="verPassword() ? 'text' : 'password'" class="field-input"
+               autocomplete="current-password" formControlName="password_actual" />
+        <p class="mt-1 text-xs text-on-surface-variant">
+          Se pide aunque ya estés dentro: tener la sesión abierta no prueba que seas tú.
+        </p>
+        @if (formulario.controls.password_actual.invalid && formulario.controls.password_actual.touched) {
+          <p class="mt-1 text-xs text-danger-text">Escribe tu contraseña actual.</p>
+        }
+        @for (e of erroresDe('password_actual'); track e) {
+          <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+        }
+      </div>
 
-    <label class="inline-flex items-center gap-2 text-sm text-on-surface-variant">
-      <input type="checkbox" class="size-4" [checked]="verPassword()"
-             (change)="verPassword.set(!verPassword())" />
-      Mostrar las contraseñas
-    </label>
+      <!-- Las dos nuevas en paralelo: se teclean seguidas y compararlas de un
+           vistazo es justo lo que la repetición pretende. -->
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label for="nueva" class="block text-sm font-medium text-on-surface mb-1">
+            Contraseña nueva *
+          </label>
+          <input id="nueva" [type]="verPassword() ? 'text' : 'password'" class="field-input"
+                 autocomplete="new-password" formControlName="password_nueva" />
+          @if (formulario.controls.password_nueva.invalid && formulario.controls.password_nueva.touched) {
+            <p class="mt-1 text-xs text-danger-text">Escribe la contraseña nueva.</p>
+          }
+          @for (e of erroresDe('password_nueva'); track e) {
+            <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+          }
+        </div>
 
-    <div>
-      <button type="submit" class="btn-primary" [disabled]="guardando()">
-        {{ guardando() ? 'Guardando…' : 'Cambiar contraseña' }}
-      </button>
-    </div>
-  </form>
+        <div>
+          <label for="repetir" class="block text-sm font-medium text-on-surface mb-1">
+            Repite la nueva *
+          </label>
+          <input id="repetir" [type]="verPassword() ? 'text' : 'password'" class="field-input"
+                 autocomplete="new-password" formControlName="repetir" />
+          @for (e of erroresDe('repetir'); track e) {
+            <p class="mt-1 text-xs text-danger-text">{{ e }}</p>
+          }
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-between gap-3 border-t border-outline-variant pt-4">
+        <label class="inline-flex items-center gap-2 text-sm text-on-surface-variant cursor-pointer">
+          <input type="checkbox" class="size-4" [checked]="verPassword()"
+                 (change)="verPassword.set(!verPassword())" />
+          Mostrar las contraseñas
+        </label>
+
+        <button type="submit" class="btn-primary" [disabled]="guardando()">
+          {{ guardando() ? 'Guardando…' : 'Cambiar contraseña' }}
+        </button>
+      </div>
+    </form>
+  </div>
 </div>

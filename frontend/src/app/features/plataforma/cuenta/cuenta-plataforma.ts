@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { PlataformaService } from '../../../core/services/plataforma.service';
@@ -17,6 +17,18 @@ export class PlataformaCuenta {
   private readonly fb = inject(FormBuilder);
 
   protected readonly usuario = this.plataformaService.usuario;
+
+  /** Iniciales para el avatar del encabezado. Dos como mucho: con tres deja
+   * de leerse dentro del círculo. */
+  protected readonly iniciales = computed(() => {
+    const nombre = this.usuario()?.nombre ?? '';
+    return nombre
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((parte) => parte[0]?.toUpperCase() ?? '')
+      .join('');
+  });
 
   protected readonly guardando = signal(false);
   protected readonly exito = signal(false);
